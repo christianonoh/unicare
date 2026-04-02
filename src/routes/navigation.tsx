@@ -4,6 +4,7 @@ import {
   Building2,
   ClipboardList,
   GraduationCap,
+  Users,
   Wallet,
   Hotel,
   BookOpen,
@@ -69,6 +70,19 @@ export const navSections: NavSection[] = [
     items: [
       { id: 'records', label: 'Records', to: '/students/records', matchPrefix: '/students/records' },
       { id: 'standing', label: 'Academic Standing', to: '/students/standing' },
+    ],
+  },
+  {
+    id: 'lecturer',
+    label: 'Lecturer',
+    icon: <Users size={ICON_SIZE} />,
+    basePath: '/lecturer',
+    items: [
+      { id: 'directory', label: 'Directory', to: '/lecturer/directory' },
+      { id: 'overview', label: 'Overview', to: '/lecturer/overview' },
+      { id: 'load', label: 'Teaching Load', to: '/lecturer/load' },
+      { id: 'advisees', label: 'Advisees', to: '/lecturer/advisees' },
+      { id: 'assessment', label: 'Assessment & Review', to: '/lecturer/assessment' },
     ],
   },
   {

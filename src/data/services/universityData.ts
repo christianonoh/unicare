@@ -66,6 +66,22 @@ function facultyNameForProgramme(programmeId: string) {
   return facultyForProgramme(programmeId)?.name ?? 'Unknown Faculty';
 }
 
+function resultWorkflowStatus(entries: Array<{ status: string }>) {
+  if (!entries.length || entries.some((entry) => entry.status === 'not_submitted')) {
+    return 'not_submitted';
+  }
+
+  if (entries.some((entry) => entry.status === 'pending')) {
+    return 'pending';
+  }
+
+  if (entries.some((entry) => entry.status === 'approved')) {
+    return 'approved';
+  }
+
+  return 'published';
+}
+
 export function getReferenceData() {
   return getData();
 }
@@ -525,6 +541,212 @@ export function getDepartmentResultSummary() {
       awaiting: departmentResults.filter((item) => item.status === 'pending' || item.status === 'not_submitted').length,
     };
   });
+}
+
+export function listLecturers() {
+  const data = getData();
+  const courseCountByLecturer = new Map<string, number>();
+  const adviseeCountByLecturer = new Map<string, number>();
+
+  data.courses.forEach((course) => {
+    if (!course.lecturerId) {
+      return;
+    }
+
+    courseCountByLecturer.set(course.lecturerId, (courseCountByLecturer.get(course.lecturerId) ?? 0) + 1);
+  });
+
+  data.students.forEach((student) => {
+    adviseeCountByLecturer.set(student.adviserId, (adviseeCountByLecturer.get(student.adviserId) ?? 0) + 1);
+  });
+
+  return data.users
+    .filter((user) => user.roleId === 'role-lecturer')
+    .map((lecturer) => ({
+      ...lecturer,
+      facultyName: lecturer.facultyId ? facultyName(lecturer.facultyId) : 'University-wide',
+      departmentName: lecturer.departmentId ? departmentName(lecturer.departmentId) : 'Central Administration',
+      courseCount: courseCountByLecturer.get(lecturer.id) ?? 0,
+      adviseeCount: adviseeCountByLecturer.get(lecturer.id) ?? 0,
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export function listLecturerCourses(lecturerId: string) {
+  const data = getData();
+  const registrationLookup = new Map(data.registrations.map((registration) => [registration.id, registration]));
+  const lecturerCourses = listCourseCatalog().filter((course) => course.lecturerId === lecturerId);
+
+  return lecturerCourses.map((course) => {
+    const registrationItems = data.registrationItems.filter((item) => item.courseId === course.id);
+    const studentIds = new Set(
+      registrationItems
+        .map((item) => registrationLookup.get(item.registrationId)?.studentId)
+        .filter((studentId): studentId is string => Boolean(studentId)),
+    );
+    const resultEntries = data.results.filter((entry) => entry.courseId === course.id);
+
+    return {
+      ...course,
+      assignedStudentCount: studentIds.size,
+      resultEntryCount: resultEntries.length,
+      pendingResultCount: resultEntries.filter((entry) => entry.status !== 'published').length,
+      resultPosture: resultWorkflowStatus(resultEntries),
+      programmeCoverage: course.attachedProgrammeNames.join(', ') || 'No programme attachment yet',
+    };
+  });
+}
+
+export function listLecturerAdvisees(lecturerId: string) {
+  const data = getData();
+  const levelLookup = new Map(data.levels.map((level) => [level.id, level]));
+  const currentRegistrations = new Map(
+    data.registrations
+      .filter((registration) => registration.semesterId === data.currentSemesterId)
+      .map((registration) => [registration.studentId, registration]),
+  );
+  const outstandingBalanceByStudent = new Map<string, number>();
+
+  data.invoices.forEach((invoice) => {
+    if (!invoice.studentId) {
+      return;
+    }
+
+    outstandingBalanceByStudent.set(
+      invoice.studentId,
+      (outstandingBalanceByStudent.get(invoice.studentId) ?? 0) + (invoice.totalAmount - invoice.amountPaid),
+    );
+  });
+
+  return data.students
+    .filter((student) => student.adviserId === lecturerId)
+    .map((student) => {
+      const registration = currentRegistrations.get(student.id);
+      const outstandingBalance = outstandingBalanceByStudent.get(student.id) ?? 0;
+
+      return {
+        ...student,
+        studentId: student.id,
+        studentName: student.fullName,
+        facultyName: facultyNameForProgramme(student.programmeId),
+        departmentName: departmentName(student.departmentId),
+        programmeName: programmeName(student.programmeId),
+        levelName: levelLookup.get(student.levelId)?.name ?? 'Unknown Level',
+        registrationId: registration?.id,
+        registrationStatus: registration?.status ?? 'draft',
+        adviserReview: registration?.adviserReview ?? 'pending',
+        hodReview: registration?.hodReview ?? 'pending',
+        hasFinancialHold: registration?.hasFinancialHold ?? outstandingBalance > 0,
+        outstandingBalance,
+      };
+    })
+    .sort((left, right) => left.fullName.localeCompare(right.fullName));
+}
+
+export function listLecturerResultEntries(lecturerId: string) {
+  const data = getData();
+  const levelLookup = new Map(data.levels.map((level) => [level.id, level]));
+  const semesterLookup = new Map(data.semesters.map((semester) => [semester.id, semester]));
+  const sessionLookup = new Map(data.academicSessions.map((session) => [session.id, session]));
+  const registrationLookup = new Map(data.registrations.map((registration) => [registration.id, registration]));
+  const studentLookup = new Map(data.students.map((student) => [student.id, student]));
+  const courseLookup = courseMap();
+
+  return data.results
+    .filter((entry) => courseLookup.get(entry.courseId)?.lecturerId === lecturerId)
+    .map((entry) => {
+      const student = studentLookup.get(entry.studentId);
+      const course = courseLookup.get(entry.courseId);
+      const semester = semesterLookup.get(entry.semesterId);
+      const session = sessionLookup.get(entry.sessionId);
+      const registration = registrationLookup.get(entry.registrationId);
+
+      return {
+        ...entry,
+        studentName: student?.fullName ?? 'Unknown Student',
+        matricNumber: student?.matricNumber ?? 'N/A',
+        facultyId: student?.facultyId,
+        departmentId: student?.departmentId,
+        programmeId: student?.programmeId,
+        levelId: student?.levelId,
+        facultyName: student?.facultyId ? facultyName(student.facultyId) : 'Unknown Faculty',
+        departmentName: student?.departmentId ? departmentName(student.departmentId) : 'Unknown Department',
+        programmeName: student?.programmeId ? programmeName(student.programmeId) : 'Unknown Programme',
+        levelName: student?.levelId ? levelLookup.get(student.levelId)?.name ?? 'Unknown Level' : 'Unknown Level',
+        courseCode: course?.code ?? 'N/A',
+        courseTitle: course?.title ?? 'Unknown Course',
+        semesterName: semester?.name ?? 'Unknown Semester',
+        sessionName: session?.name ?? 'Unknown Session',
+        registrationStatus: registration?.status ?? 'draft',
+      };
+    })
+    .sort((left, right) => left.studentName.localeCompare(right.studentName));
+}
+
+export function listLecturerRegistrationReviews(lecturerId: string) {
+  const data = getData();
+  const advisees = new Map(listLecturerAdvisees(lecturerId).map((advisee) => [advisee.studentId, advisee]));
+  const semesterLookup = new Map(data.semesters.map((semester) => [semester.id, semester]));
+  const sessionLookup = new Map(data.academicSessions.map((session) => [session.id, session]));
+
+  return data.registrations
+    .filter((registration) => advisees.has(registration.studentId))
+    .map((registration) => {
+      const advisee = advisees.get(registration.studentId)!;
+      const semester = semesterLookup.get(registration.semesterId);
+      const session = sessionLookup.get(registration.sessionId);
+
+      return {
+        ...registration,
+        studentName: advisee.studentName,
+        matricNumber: advisee.matricNumber,
+        facultyId: advisee.facultyId,
+        departmentId: advisee.departmentId,
+        programmeId: advisee.programmeId,
+        levelId: advisee.levelId,
+        facultyName: advisee.facultyName,
+        departmentName: advisee.departmentName,
+        programmeName: advisee.programmeName,
+        levelName: advisee.levelName,
+        studentStatus: advisee.status,
+        clearanceStatus: advisee.clearanceStatus,
+        outstandingBalance: advisee.outstandingBalance,
+        semesterName: semester?.name ?? 'Unknown Semester',
+        sessionName: session?.name ?? 'Unknown Session',
+      };
+    })
+    .sort((left, right) => left.studentName.localeCompare(right.studentName));
+}
+
+export function getLecturerOverview(lecturerId: string) {
+  const lecturer = listLecturers().find((item) => item.id === lecturerId);
+  const courses = listLecturerCourses(lecturerId);
+  const advisees = listLecturerAdvisees(lecturerId);
+  const resultEntries = listLecturerResultEntries(lecturerId);
+  const registrationReviews = listLecturerRegistrationReviews(lecturerId);
+
+  return {
+    lecturer,
+    assignedCourses: courses.length,
+    advisees: advisees.length,
+    resultRowsAwaitingAction: resultEntries.filter((entry) => entry.status !== 'published').length,
+    registrationsNeedingReview: registrationReviews.filter(
+      (review) => review.adviserReview !== 'approved' || review.hasFinancialHold || review.status === 'held' || review.status === 'rejected',
+    ).length,
+    courseQueue: courses
+      .filter((course) => course.resultPosture !== 'published')
+      .sort((left, right) => right.pendingResultCount - left.pendingResultCount)
+      .slice(0, 5),
+    adviseeQueue: advisees
+      .filter(
+        (advisee) =>
+          advisee.hasFinancialHold ||
+          advisee.registrationStatus === 'held' ||
+          advisee.registrationStatus === 'pending' ||
+          advisee.adviserReview !== 'approved',
+      )
+      .slice(0, 5),
+  };
 }
 
 export function listUsers() {

@@ -59,12 +59,12 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
   const pageContent: Record<ResultsView, { title: string; description: string; sectionEmptyMessage?: string }> = {
     'score-entry': {
       title: 'Score entry',
-      description: 'A lecturer and departmental workbench for semester result rows, student averages, and score-sheet inspection.',
+      description: 'A departmental and faculty oversight ledger for semester result rows, student averages, and publication posture.',
       sectionEmptyMessage: 'Choose a faculty and department to load result rows.',
     },
     approval: {
       title: 'Approval queue',
-      description: 'Result bundles still awaiting lecturer submission, departmental review, or faculty sign-off, now narrowed by academic ownership first.',
+      description: 'Departmental and faculty oversight of result bundles still awaiting submission, review, or sign-off, narrowed by academic ownership first.',
       sectionEmptyMessage: 'Choose a faculty and department to load approval cases.',
     },
     departments: {

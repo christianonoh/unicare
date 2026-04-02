@@ -9,6 +9,7 @@ import { FinancePage } from '../modules/finance/FinancePage';
 import { HostelDetailPage } from '../modules/hostels/HostelDetailPage';
 import { HostelsPage } from '../modules/hostels/HostelsPage';
 import { InvoiceDetailPage } from '../modules/finance/InvoiceDetailPage';
+import { LecturerPage } from '../modules/lecturer/LecturerPage';
 import { ReportsPage } from '../modules/reports/ReportsPage';
 import { ResultsPage } from '../modules/results/ResultsPage';
 import { SettingsPage } from '../modules/settings/SettingsPage';
@@ -50,6 +51,13 @@ export const router = createBrowserRouter([
       { path: '/students/directory', element: <Navigate to="/students/records" replace /> },
       { path: '/students/profiles', element: <Navigate to="/students/records" replace /> },
       { path: '/students/profiles/:studentId', element: <LegacyStudentRedirect /> },
+
+      { path: '/lecturer', element: <Navigate to="/lecturer/directory" replace /> },
+      { path: '/lecturer/directory', element: <LecturerPage view="directory" /> },
+      { path: '/lecturer/overview', element: <LecturerPage view="overview" /> },
+      { path: '/lecturer/load', element: <LecturerPage view="load" /> },
+      { path: '/lecturer/advisees', element: <LecturerPage view="advisees" /> },
+      { path: '/lecturer/assessment', element: <LecturerPage view="assessment" /> },
 
       { path: '/finance', element: <Navigate to="/finance/templates" replace /> },
       { path: '/finance/templates', element: <FinancePage view="templates" /> },

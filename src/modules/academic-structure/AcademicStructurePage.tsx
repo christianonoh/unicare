@@ -796,7 +796,7 @@ export function AcademicStructurePage({ view = 'faculties' }: AcademicStructureP
         />
       </div>
 
-      <SectionCard title={viewContent[view].dependencyTitle} subtitle="Use this panel to explain what depends on what during demos and database conversations.">
+      {/* <SectionCard title={viewContent[view].dependencyTitle} subtitle="Use this panel to explain what depends on what during demos and database conversations.">
         <div className="dependency-grid">
           {viewContent[view].dependencyLines.map((line) => (
             <div key={line} className="dependency-item">
@@ -804,7 +804,7 @@ export function AcademicStructurePage({ view = 'faculties' }: AcademicStructureP
             </div>
           ))}
         </div>
-      </SectionCard>
+      </SectionCard> */}
 
       {view === 'faculties' ? (
         <SectionCard title="Faculty register" subtitle="Each faculty shows its dean, office, and the number of departments and programmes it governs.">

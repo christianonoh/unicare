@@ -1,14 +1,15 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
+import { AcademicScopePanel } from '../../components/AcademicScopePanel';
 import { DataTable } from '../../components/DataTable';
 import { Modal } from '../../components/Modal';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatCard } from '../../components/StatCard';
 import { StatusBadge } from '../../components/StatusBadge';
-import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
-import { getReferenceData, listApplicants, listInvoices, listPayments, listStudents } from '../../data/services/universityData';
+import { getAcademicScopeOptions, getReferenceData, listApplicants, listInvoices, listPayments, listStudents, matchesAcademicScope } from '../../data/services/universityData';
 import { formatCurrency } from '../../lib/formatters';
 import { statusTone } from '../../lib/status';
 import { toast } from '../../lib/toast';
@@ -30,7 +31,12 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
   useDemoRevision();
   const navigate = useNavigate();
   const createInvoice = useDemoDataStore((state) => state.createInvoice);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [facultyId, setFacultyId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [programmeId, setProgrammeId] = useState('');
+  const [levelId, setLevelId] = useState('');
+  const [statusFilter, setStatusFilter] = useState(view === 'holds' ? 'active-holds' : 'all');
+  const [query, setQuery] = useState('');
   const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
   const [formError, setFormError] = useState('');
   const { feeTemplates } = getReferenceData();
@@ -38,19 +44,20 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
   const studentOptions = listStudents();
   const allInvoices = listInvoices();
   const allPayments = listPayments();
+  const { faculties, departments, programmes: scopedProgrammes, levels } = getAcademicScopeOptions({ facultyId, departmentId });
+  const isScopedView = view !== 'templates';
+  const hasRequiredScope = !isScopedView || Boolean(facultyId && departmentId);
   const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>({
-    ownerType: 'student' as const,
+    ownerType: 'student',
     ownerId: studentOptions[0]?.id ?? '',
     feeTemplateId: feeTemplates[0]?.id ?? '',
     dueDate: '2026-04-30',
   });
-  const invoices = allInvoices.filter((invoice) => {
-    const matchesView = view === 'holds' ? invoice.status === 'unpaid' || invoice.status === 'overdue' : view === 'invoices' ? true : false;
-    const matchesStatus = statusFilter === 'all' ? true : invoice.status === statusFilter;
-    return matchesView && matchesStatus;
-  });
-  const payments = allPayments.filter((payment) => (statusFilter === 'all' ? true : payment.status === statusFilter));
-  const pageContent: Record<FinanceView, { eyebrow: string; title: string; description: string }> = {
+
+  const pageContent: Record<
+    FinanceView,
+    { eyebrow: string; title: string; description: string; sectionTitle?: string; sectionEmptyMessage?: string; resultLabel?: string }
+  > = {
     templates: {
       eyebrow: 'Bursary operations',
       title: 'Fee templates',
@@ -59,28 +66,72 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
     invoices: {
       eyebrow: 'Bursary operations',
       title: 'Invoices',
-      description: 'Track billed amounts, balances, and invoice-level status for applicants and returning students.',
+      description: 'Track billed amounts, balances, and invoice-level status inside a scoped bursary ledger built for scale.',
+      sectionTitle: 'Invoice ledger',
+      sectionEmptyMessage: 'Choose a faculty and department to load invoices.',
+      resultLabel: 'invoices in scope',
     },
     payments: {
       eyebrow: 'Bursary operations',
       title: 'Payments',
-      description: 'View transaction history across channels and see how posted payments reconcile against invoice records.',
+      description: 'View transaction history across channels only after choosing the academic ownership context that produced it.',
+      sectionTitle: 'Payment register',
+      sectionEmptyMessage: 'Choose a faculty and department to load payments.',
+      resultLabel: 'payments in scope',
     },
     holds: {
       eyebrow: 'Bursary operations',
       title: 'Registration holds',
       description: 'Focus on unpaid and overdue accounts that can block registration or trigger registrar intervention.',
+      sectionTitle: 'Held accounts',
+      sectionEmptyMessage: 'Choose a faculty and department to load held accounts.',
+      resultLabel: 'hold cases in scope',
     },
   };
 
-  const columns = [
+  const scopedInvoices = allInvoices.filter((invoice) => {
+    const matchesView = view === 'holds' ? invoice.status === 'unpaid' || invoice.status === 'overdue' : view === 'invoices';
+    return matchesView && matchesAcademicScope(invoice, { facultyId, departmentId, programmeId, levelId });
+  });
+  const invoices = scopedInvoices.filter((invoice) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery =
+      !normalizedQuery ||
+      invoice.invoiceNumber.toLowerCase().includes(normalizedQuery) ||
+      invoice.ownerName.toLowerCase().includes(normalizedQuery) ||
+      invoice.programmeName.toLowerCase().includes(normalizedQuery);
+    const matchesStatus =
+      view === 'holds'
+        ? statusFilter === 'active-holds'
+          ? invoice.status === 'unpaid' || invoice.status === 'overdue'
+          : invoice.status === statusFilter
+        : statusFilter === 'all'
+          ? true
+          : invoice.status === statusFilter;
+
+    return matchesQuery && matchesStatus;
+  });
+  const scopedPayments = allPayments.filter((payment) => matchesAcademicScope(payment, { facultyId, departmentId, programmeId, levelId }));
+  const payments = scopedPayments.filter((payment) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery =
+      !normalizedQuery ||
+      payment.invoiceNumber.toLowerCase().includes(normalizedQuery) ||
+      payment.ownerName.toLowerCase().includes(normalizedQuery) ||
+      payment.programmeName.toLowerCase().includes(normalizedQuery);
+    const matchesStatus = statusFilter === 'all' ? true : payment.status === statusFilter;
+
+    return matchesQuery && matchesStatus;
+  });
+
+  const invoiceColumns = [
     createColumnHelper<(typeof invoices)[number]>().accessor('invoiceNumber', {
       header: 'Invoice',
       cell: (info) => <Link to={`/finance/invoices/${info.row.original.id}`}>{info.getValue()}</Link>,
     }),
     createColumnHelper<(typeof invoices)[number]>().accessor('ownerName', { header: 'Owner', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof invoices)[number]>().accessor('programmeName', { header: 'Programme', cell: (info) => info.getValue() }),
-    createColumnHelper<(typeof invoices)[number]>().accessor('totalAmount', { header: 'Total', cell: (info) => formatCurrency(info.getValue()) }),
+    createColumnHelper<(typeof invoices)[number]>().accessor('levelName', { header: 'Level', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof invoices)[number]>().accessor('balance', { header: 'Balance', cell: (info) => formatCurrency(info.getValue()) }),
     createColumnHelper<(typeof invoices)[number]>().accessor('status', {
       header: 'Status',
@@ -90,8 +141,9 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
   const paymentColumns = [
     createColumnHelper<(typeof payments)[number]>().accessor('invoiceNumber', { header: 'Invoice', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof payments)[number]>().accessor('ownerName', { header: 'Owner', cell: (info) => info.getValue() }),
+    createColumnHelper<(typeof payments)[number]>().accessor('programmeName', { header: 'Programme', cell: (info) => info.getValue() }),
+    createColumnHelper<(typeof payments)[number]>().accessor('levelName', { header: 'Level', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof payments)[number]>().accessor('amount', { header: 'Amount', cell: (info) => formatCurrency(info.getValue()) }),
-    createColumnHelper<(typeof payments)[number]>().accessor('channel', { header: 'Channel', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof payments)[number]>().accessor('status', {
       header: 'Status',
       cell: (info) => <StatusBadge tone={statusTone(info.getValue())} label={info.getValue()} />,
@@ -127,6 +179,24 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
     }
   }
 
+  function handleFacultyChange(value: string) {
+    setFacultyId(value);
+    setDepartmentId('');
+    setProgrammeId('');
+    setLevelId('');
+  }
+
+  function handleDepartmentChange(value: string) {
+    setDepartmentId(value);
+    setProgrammeId('');
+    setLevelId('');
+  }
+
+  function handleProgrammeChange(value: string) {
+    setProgrammeId(value);
+    setLevelId('');
+  }
+
   return (
     <div className="page-grid">
       <PageHeader
@@ -142,10 +212,33 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
 
       <div className="stats-grid">
         <StatCard label="Fee templates" value={String(feeTemplates.length)} meta="Policy-backed billing templates that can later drive programme or level billing." />
-        <StatCard label="Paid invoices" value={String(listInvoices().filter((item) => item.status === 'paid').length)} meta="Accounts already clear for academic progression." />
-        <StatCard label="Open exposure" value={String(listInvoices().filter((item) => item.status !== 'paid').length)} meta="Invoices with balances that still affect registration." />
-        <StatCard label="Held cases" value={String(listInvoices().filter((item) => item.status === 'overdue' || item.status === 'unpaid').length)} meta="Records most likely to trigger admin intervention." />
+        <StatCard label="Paid invoices" value={String(allInvoices.filter((item) => item.status === 'paid').length)} meta="Accounts already clear for academic progression." />
+        <StatCard label="Open exposure" value={String(allInvoices.filter((item) => item.status !== 'paid').length)} meta="Invoices with balances that still affect registration." />
+        <StatCard label="Held cases" value={String(allInvoices.filter((item) => item.status === 'overdue' || item.status === 'unpaid').length)} meta="Records most likely to trigger admin intervention." />
       </div>
+
+      {isScopedView ? (
+        <AcademicScopePanel
+          title="Academic scope"
+          description="Choose ownership first so finance ledgers open inside a faculty and department context instead of loading every record at once."
+          facultyId={facultyId}
+          departmentId={departmentId}
+          programmeId={programmeId}
+          levelId={levelId}
+          faculties={faculties.map((faculty) => ({ id: faculty.id, label: faculty.name }))}
+          departments={departments.map((department) => ({ id: department.id, label: department.name }))}
+          programmes={scopedProgrammes.map((programme) => ({ id: programme.id, label: `${programme.award} ${programme.name}` }))}
+          levels={levels.map((level) => ({ id: level.id, label: level.name }))}
+          resultLabel={pageContent[view].resultLabel ?? 'records in scope'}
+          resultCount={hasRequiredScope ? (view === 'payments' ? scopedPayments.length : scopedInvoices.length) : 0}
+          resultMeta="Page-level scope narrows the ledger before search and status refine the records below."
+          emptyMessage={pageContent[view].sectionEmptyMessage ?? 'Choose a faculty and department to load records.'}
+          onFacultyChange={handleFacultyChange}
+          onDepartmentChange={handleDepartmentChange}
+          onProgrammeChange={handleProgrammeChange}
+          onLevelChange={setLevelId}
+        />
+      ) : null}
 
       {view === 'templates' ? (
         <div className="triple-grid">
@@ -175,39 +268,66 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
 
       {view === 'invoices' || view === 'holds' ? (
         <SectionCard
-          title={view === 'holds' ? 'Accounts currently holding registration' : 'Invoice ledger'}
-          subtitle={
-            view === 'holds'
-              ? 'Only invoices that can actively block progression or registration.'
-              : 'Designed to show where owner, fee template, payment records, and hold state connect.'
-          }
+          title={pageContent[view].sectionTitle ?? 'Invoice ledger'}
+          subtitle="Search and status only refine the scoped bursary records."
           aside={
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="all">All invoices</option>
-              <option value="paid">Paid</option>
-              <option value="part_paid">Part paid</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="overdue">Overdue</option>
-            </select>
+            <div className="table-toolbar">
+              <input
+                className="search-input"
+                placeholder="Search invoice, owner, or programme"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                disabled={!hasRequiredScope}
+              />
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} disabled={!hasRequiredScope}>
+                {view === 'holds' ? (
+                  <>
+                    <option value="active-holds">All hold cases</option>
+                    <option value="unpaid">Unpaid</option>
+                    <option value="overdue">Overdue</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="all">All invoices</option>
+                    <option value="paid">Paid</option>
+                    <option value="part_paid">Part paid</option>
+                    <option value="unpaid">Unpaid</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="waived">Waived</option>
+                  </>
+                )}
+              </select>
+            </div>
           }
         >
-          <DataTable data={invoices} columns={columns} exportFilename="invoices" />
+          {hasRequiredScope ? <DataTable data={invoices} columns={invoiceColumns} exportFilename="invoices" /> : <div className="empty-state">{pageContent[view].sectionEmptyMessage}</div>}
         </SectionCard>
       ) : null}
 
       {view === 'payments' ? (
         <SectionCard
-          title="Payment register"
-          subtitle="A flatter system-of-record view of how actual transactions tie back to invoice entities."
+          title={pageContent[view].sectionTitle ?? 'Payment register'}
+          subtitle="Search and status only refine the scoped payment history."
           aside={
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="all">All payments</option>
-              <option value="successful">Successful</option>
-              <option value="reconciled">Reconciled</option>
-            </select>
+            <div className="table-toolbar">
+              <input
+                className="search-input"
+                placeholder="Search invoice, owner, or programme"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                disabled={!hasRequiredScope}
+              />
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} disabled={!hasRequiredScope}>
+                <option value="all">All payments</option>
+                <option value="successful">Successful</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+                <option value="reconciled">Reconciled</option>
+              </select>
+            </div>
           }
         >
-          <DataTable data={payments} columns={paymentColumns} exportFilename="payments" />
+          {hasRequiredScope ? <DataTable data={payments} columns={paymentColumns} exportFilename="payments" /> : <div className="empty-state">{pageContent[view].sectionEmptyMessage}</div>}
         </SectionCard>
       ) : null}
 

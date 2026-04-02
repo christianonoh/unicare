@@ -42,7 +42,12 @@ export function HostelDetailPage() {
 
   function handleVacate(assignmentId: string) {
     const result = vacateAssignment(assignmentId);
-    result.ok ? toast.success(result.message) : toast.error(result.message);
+    if (result.ok) {
+      toast.success(result.message);
+      return;
+    }
+
+    toast.error(result.message);
   }
 
   const totalOccupancy = rooms.reduce((sum, r) => sum + r.occupancy, 0);
@@ -50,7 +55,7 @@ export function HostelDetailPage() {
   return (
     <div className="page-grid">
       <PageHeader
-        eyebrow="Hostel directory"
+        eyebrow="Hostel overview"
         title={block.name}
         description={`${block.location} • ${block.type} hall • Porter: ${block.porterName} • ${block.totalRooms} rooms, ${block.totalBeds} beds, ${totalOccupancy} occupied`}
       />

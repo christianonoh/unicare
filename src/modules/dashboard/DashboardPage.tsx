@@ -82,7 +82,7 @@ export function DashboardPage() {
         <SectionCard title="Admissions queue" subtitle="Applicants who illustrate the range of states leadership will want to see in a demo.">
           <div className="list-stack">
             {applicants.map((applicant) => (
-              <Link key={applicant.id} to={`/registry/applicants/${applicant.id}`} className="list-row">
+              <Link key={applicant.id} to={`/admissions/applications/${applicant.id}`} className="list-row">
                 <div>
                   <strong>{applicant.fullName}</strong>
                   <p>{applicant.programmeName}</p>

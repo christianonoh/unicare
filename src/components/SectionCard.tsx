@@ -13,7 +13,7 @@ export function SectionCard({ title, subtitle, aside, children }: SectionCardPro
       <div className="section-card__header">
         <div>
           <h2>{title}</h2>
-          {/* {subtitle ? <p>{subtitle}</p> : null} */}
+          {subtitle ? <p>{subtitle}</p> : null}
         </div>
         {aside ? <div>{aside}</div> : null}
       </div>

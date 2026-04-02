@@ -1,6 +1,7 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
+import { AcademicScopePanel } from '../../components/AcademicScopePanel';
 import { DataTable } from '../../components/DataTable';
 import { Modal } from '../../components/Modal';
 import { PageHeader } from '../../components/PageHeader';
@@ -8,15 +9,15 @@ import { SectionCard } from '../../components/SectionCard';
 import { StatCard } from '../../components/StatCard';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
-import { getReferenceData, listApplicants } from '../../data/services/universityData';
+import { getAcademicScopeOptions, getReferenceData, listApplicants, matchesAcademicScope } from '../../data/services/universityData';
 import type { EntryMode, Gender } from '../../types/domain';
 import { toast } from '../../lib/toast';
 import { statusTone } from '../../lib/status';
 
-type RegistryView = 'applicants' | 'offers' | 'clearance';
+type AdmissionsView = 'applications' | 'clearance';
 
 interface AdmissionsPageProps {
-  view?: RegistryView;
+  view?: AdmissionsView;
 }
 
 interface ApplicantDraft {
@@ -32,12 +33,18 @@ interface ApplicantDraft {
   notes: string;
 }
 
-export function AdmissionsPage({ view = 'applicants' }: AdmissionsPageProps) {
+const clearanceStatuses = new Set(['pending', 'held', 'queried']);
+
+export function AdmissionsPage({ view = 'applications' }: AdmissionsPageProps) {
   useDemoRevision();
   const navigate = useNavigate();
   const { programmes } = getReferenceData();
   const createApplicant = useDemoDataStore((state) => state.createApplicant);
-  const [statusFilter, setStatusFilter] = useState(view === 'offers' ? 'offered' : 'all');
+  const [facultyId, setFacultyId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [programmeId, setProgrammeId] = useState('');
+  const [levelId, setLevelId] = useState('');
+  const [statusFilter, setStatusFilter] = useState(view === 'clearance' ? 'queue' : 'all');
   const [query, setQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [formError, setFormError] = useState('');
@@ -54,42 +61,51 @@ export function AdmissionsPage({ view = 'applicants' }: AdmissionsPageProps) {
     screeningScore: 62,
     notes: '',
   });
-  const pageContent: Record<RegistryView, { eyebrow: string; title: string; description: string; sectionTitle: string; sectionSubtitle: string }> = {
-    applicants: {
-      eyebrow: 'Registry operations',
-      title: 'Applicants',
-      description: 'Track the full admissions pipeline from screening to offer, acceptance payment, and final registry clearance.',
-      sectionTitle: 'Applicant workbench',
-      sectionSubtitle: 'The full applicant list, searchable and filterable like a real registry queue.',
-    },
-    offers: {
-      eyebrow: 'Registry operations',
-      title: 'Admission offers',
-      description: 'Focus on candidates who are either already offered admission or close enough to require active registry follow-up.',
-      sectionTitle: 'Offer management',
-      sectionSubtitle: 'Candidates who need offer issuance, acceptance follow-up, or conversion monitoring.',
+  const pageContent: Record<
+    AdmissionsView,
+    { eyebrow: string; title: string; description: string; sectionTitle: string; sectionEmptyMessage: string }
+  > = {
+    applications: {
+      eyebrow: 'Admissions operations',
+      title: 'Applications',
+      description: 'One admissions workbench for application review, offer follow-up, and conversion visibility across the academic structure.',
+      sectionTitle: 'Admissions pipeline',
+      sectionEmptyMessage: 'Choose a faculty and department to load applications.',
     },
     clearance: {
-      eyebrow: 'Registry operations',
-      title: 'Clearance queue',
-      description: 'Highlight applicants blocked by document verification, payment posture, or unresolved onboarding exceptions.',
-      sectionTitle: 'Clearance exceptions',
-      sectionSubtitle: 'The queue most likely to require coordinated action between registry and bursary.',
+      eyebrow: 'Admissions operations',
+      title: 'Clearance',
+      description: 'A scoped admissions exception queue for verification and onboarding blockers that need active intervention.',
+      sectionTitle: 'Clearance queue',
+      sectionEmptyMessage: 'Choose a faculty and department to load clearance cases.',
     },
   };
-  const applicants = listApplicants().filter((applicant) => {
-    const matchesView =
-      view === 'offers'
-        ? applicant.admissionStatus === 'offered' || applicant.admissionStatus === 'accepted'
-        : view === 'clearance'
-          ? applicant.clearanceStatus === 'pending' || applicant.clearanceStatus === 'held' || applicant.clearanceStatus === 'queried'
-          : true;
-    const matchesStatus = statusFilter === 'all' ? true : applicant.admissionStatus === statusFilter;
-    const matchesQuery =
-      applicant.fullName.toLowerCase().includes(query.toLowerCase()) ||
-      applicant.programmeName.toLowerCase().includes(query.toLowerCase());
 
-    return matchesView && matchesStatus && matchesQuery;
+  const { faculties, departments, programmes: scopedProgrammes, levels } = getAcademicScopeOptions({ facultyId, departmentId });
+  const hasRequiredScope = Boolean(facultyId && departmentId);
+  const allApplicants = listApplicants();
+  const scopedApplicants = allApplicants.filter((applicant) => {
+    const matchesView = view === 'clearance' ? clearanceStatuses.has(applicant.clearanceStatus) : true;
+
+    return matchesView && matchesAcademicScope(applicant, { facultyId, departmentId, programmeId, levelId });
+  });
+  const applicants = scopedApplicants.filter((applicant) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery =
+      !normalizedQuery ||
+      applicant.fullName.toLowerCase().includes(normalizedQuery) ||
+      applicant.programmeName.toLowerCase().includes(normalizedQuery) ||
+      applicant.applicationNumber.toLowerCase().includes(normalizedQuery);
+    const matchesStatus =
+      view === 'clearance'
+        ? statusFilter === 'queue' || statusFilter === 'all'
+          ? clearanceStatuses.has(applicant.clearanceStatus)
+          : applicant.clearanceStatus === statusFilter
+        : statusFilter === 'all'
+          ? true
+          : applicant.admissionStatus === statusFilter;
+
+    return matchesQuery && matchesStatus;
   });
   const selectedProgramme = useMemo(
     () => programmes.find((programme) => programme.id === draft.programmeId),
@@ -99,7 +115,7 @@ export function AdmissionsPage({ view = 'applicants' }: AdmissionsPageProps) {
   const columns = [
     createColumnHelper<(typeof applicants)[number]>().accessor('fullName', {
       header: 'Applicant',
-      cell: (info) => <Link to={`/registry/applicants/${info.row.original.id}`}>{info.getValue()}</Link>,
+      cell: (info) => <Link to={`/admissions/applications/${info.row.original.id}`}>{info.getValue()}</Link>,
     }),
     createColumnHelper<(typeof applicants)[number]>().accessor('programmeName', { header: 'Programme', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof applicants)[number]>().accessor('aggregateScore', { header: 'Aggregate', cell: (info) => info.getValue() }),
@@ -145,7 +161,25 @@ export function AdmissionsPage({ view = 'applicants' }: AdmissionsPageProps) {
     setShowCreateModal(false);
     resetDraft();
     toast.success('Applicant created successfully.');
-    navigate(`/registry/applicants/${result.id}`);
+    navigate(`/admissions/applications/${result.id}`);
+  }
+
+  function handleFacultyChange(value: string) {
+    setFacultyId(value);
+    setDepartmentId('');
+    setProgrammeId('');
+    setLevelId('');
+  }
+
+  function handleDepartmentChange(value: string) {
+    setDepartmentId(value);
+    setProgrammeId('');
+    setLevelId('');
+  }
+
+  function handleProgrammeChange(value: string) {
+    setProgrammeId(value);
+    setLevelId('');
   }
 
   return (
@@ -163,36 +197,75 @@ export function AdmissionsPage({ view = 'applicants' }: AdmissionsPageProps) {
               setShowCreateModal(true);
             }}
           >
-            New applicant
+            New application
           </button>
         }
       />
 
       <div className="stats-grid">
-        <StatCard label="Screening queue" value={String(listApplicants().filter((item) => item.admissionStatus === 'screening').length)} meta="Applications still being reviewed by registry and departments." />
-        <StatCard label="Offers issued" value={String(listApplicants().filter((item) => item.admissionStatus === 'offered').length)} meta="Candidates with offers but incomplete onboarding." />
-        <StatCard label="Accepted" value={String(listApplicants().filter((item) => item.admissionStatus === 'accepted').length)} meta="Freshers likely to convert into student records." />
-        <StatCard label="Held clearance" value={String(listApplicants().filter((item) => item.clearanceStatus === 'held').length)} meta="Cases with verification or payment blockers." />
+        <StatCard label="Screening queue" value={String(allApplicants.filter((item) => item.admissionStatus === 'screening').length)} meta="Applications still being reviewed by admissions and departments." />
+        <StatCard label="Offers issued" value={String(allApplicants.filter((item) => item.admissionStatus === 'offered').length)} meta="Candidates with offers but incomplete onboarding." />
+        <StatCard label="Accepted" value={String(allApplicants.filter((item) => item.admissionStatus === 'accepted').length)} meta="Freshers most likely to convert into student records." />
+        <StatCard label="Held clearance" value={String(allApplicants.filter((item) => item.clearanceStatus === 'held').length)} meta="Cases with verification or payment blockers." />
       </div>
+
+      <AcademicScopePanel
+        title="Academic scope"
+        description="Choose where the admissions workload belongs before loading rows into the workbench."
+        facultyId={facultyId}
+        departmentId={departmentId}
+        programmeId={programmeId}
+        levelId={levelId}
+        faculties={faculties.map((faculty) => ({ id: faculty.id, label: faculty.name }))}
+        departments={departments.map((department) => ({ id: department.id, label: department.name }))}
+        programmes={scopedProgrammes.map((programme) => ({ id: programme.id, label: `${programme.award} ${programme.name}` }))}
+        levels={levels.map((level) => ({ id: level.id, label: level.name }))}
+        resultLabel={view === 'clearance' ? 'clearance cases in scope' : 'applications in scope'}
+        resultCount={hasRequiredScope ? scopedApplicants.length : 0}
+        resultMeta="Page-level scope narrows the queue before search or status refinement."
+        emptyMessage={pageContent[view].sectionEmptyMessage}
+        onFacultyChange={handleFacultyChange}
+        onDepartmentChange={handleDepartmentChange}
+        onProgrammeChange={handleProgrammeChange}
+        onLevelChange={setLevelId}
+      />
 
       <SectionCard
         title={pageContent[view].sectionTitle}
-        subtitle={pageContent[view].sectionSubtitle}
+        subtitle="Search and status only refine the scoped queue."
         aside={
-          <div className="filters-inline">
-            <input className="search-input" placeholder="Search applicant or programme" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="all">All statuses</option>
-              <option value="screening">Screening</option>
-              <option value="offered">Offered</option>
-              <option value="accepted">Accepted</option>
-              <option value="deferred">Deferred</option>
-              <option value="declined">Declined</option>
+          <div className="table-toolbar">
+            <input
+              className="search-input"
+              placeholder="Search applicant, application number, or programme"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              disabled={!hasRequiredScope}
+            />
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} disabled={!hasRequiredScope}>
+              {view === 'clearance' ? (
+                <>
+                  <option value="queue">All clearance cases</option>
+                  <option value="pending">Pending</option>
+                  <option value="held">Held</option>
+                  <option value="queried">Queried</option>
+                  <option value="cleared">Cleared</option>
+                </>
+              ) : (
+                <>
+                  <option value="all">All statuses</option>
+                  <option value="screening">Screening</option>
+                  <option value="offered">Offered</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="deferred">Deferred</option>
+                  <option value="declined">Declined</option>
+                </>
+              )}
             </select>
           </div>
         }
       >
-        <DataTable data={applicants} columns={columns} exportFilename="applicants" />
+        {hasRequiredScope ? <DataTable data={applicants} columns={columns} exportFilename="applications" /> : <div className="empty-state">{pageContent[view].sectionEmptyMessage}</div>}
       </SectionCard>
 
       {showCreateModal ? (
@@ -269,21 +342,14 @@ export function AdmissionsPage({ view = 'applicants' }: AdmissionsPageProps) {
                 onChange={(event) => setDraft((current) => ({ ...current, screeningScore: Number(event.target.value) }))}
               />
             </label>
+            <div className="readonly-field">
+              Target programme: {selectedProgramme ? `${selectedProgramme.award} ${selectedProgramme.name}` : 'Select a programme'}
+            </div>
             <label className="field-group field-group--full">
-              <span>Registry notes</span>
-              <textarea
-                rows={4}
-                value={draft.notes}
-                onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
-              />
+              <span>Notes</span>
+              <textarea value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
             </label>
           </div>
-
-          {selectedProgramme ? (
-            <div className="note-callout note-callout--info">
-              Applicant will be created under <strong>{selectedProgramme.name}</strong>.
-            </div>
-          ) : null}
           {formError ? <div className="note-callout note-callout--danger">{formError}</div> : null}
         </Modal>
       ) : null}

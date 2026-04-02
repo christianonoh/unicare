@@ -1,6 +1,13 @@
 import { useDemoDataStore } from '../../app/store/demoDataStore';
 import type { DashboardSummary } from '../../types/domain';
 
+export interface AcademicScopeSelection {
+  facultyId?: string;
+  departmentId?: string;
+  programmeId?: string;
+  levelId?: string;
+}
+
 function getData() {
   return useDemoDataStore.getState().data;
 }
@@ -61,6 +68,35 @@ function facultyNameForProgramme(programmeId: string) {
 
 export function getReferenceData() {
   return getData();
+}
+
+export function getAcademicScopeOptions(selection: Pick<AcademicScopeSelection, 'facultyId' | 'departmentId'> = {}) {
+  const data = getData();
+  const departments = selection.facultyId
+    ? data.departments.filter((department) => department.facultyId === selection.facultyId)
+    : [];
+  const programmes = selection.departmentId
+    ? data.programmes.filter((programme) => programme.departmentId === selection.departmentId)
+    : [];
+
+  return {
+    faculties: data.faculties,
+    departments,
+    programmes,
+    levels: data.levels,
+  };
+}
+
+export function matchesAcademicScope(
+  item: { facultyId?: string; departmentId?: string; programmeId?: string; levelId?: string },
+  selection: AcademicScopeSelection,
+) {
+  return (
+    (!selection.facultyId || item.facultyId === selection.facultyId) &&
+    (!selection.departmentId || item.departmentId === selection.departmentId) &&
+    (!selection.programmeId || item.programmeId === selection.programmeId) &&
+    (!selection.levelId || item.levelId === selection.levelId)
+  );
 }
 
 export function listFacultyHierarchy() {
@@ -256,11 +292,14 @@ export function getApplicantById(applicantId: string) {
 }
 
 export function listStudents() {
+  const levelLookup = new Map(getData().levels.map((level) => [level.id, level]));
+
   return getData().students.map((student) => ({
     ...student,
     facultyName: facultyNameForProgramme(student.programmeId),
     departmentName: departmentName(student.departmentId),
     programmeName: programmeName(student.programmeId),
+    levelName: levelLookup.get(student.levelId)?.name ?? 'Unknown Level',
     adviserName: userMap().get(student.adviserId)?.name ?? 'Adviser not assigned',
   }));
 }
@@ -310,15 +349,25 @@ export function getStudentProfile(studentId: string) {
 
 export function listInvoices() {
   const data = getData();
+  const levelLookup = new Map(data.levels.map((level) => [level.id, level]));
 
   return data.invoices.map((invoice) => {
     const student = invoice.studentId ? data.students.find((item) => item.id === invoice.studentId) : undefined;
     const applicant = invoice.applicantId ? data.applicants.find((item) => item.id === invoice.applicantId) : undefined;
+    const owner = student ?? applicant;
+    const ownerLevelId = student?.levelId;
 
     return {
       ...invoice,
+      facultyId: owner?.facultyId,
+      departmentId: owner?.departmentId,
+      programmeId: owner?.programmeId,
+      levelId: ownerLevelId,
       ownerName: student?.fullName ?? applicant?.fullName ?? 'Unknown Owner',
+      facultyName: owner?.facultyId ? facultyName(owner.facultyId) : 'General',
+      departmentName: owner?.departmentId ? departmentName(owner.departmentId) : 'General',
       programmeName: student ? programmeName(student.programmeId) : applicant ? programmeName(applicant.programmeId) : 'General',
+      levelName: ownerLevelId ? levelLookup.get(ownerLevelId)?.name ?? 'Unknown Level' : 'N/A',
       balance: invoice.totalAmount - invoice.amountPaid,
     };
   });
@@ -333,7 +382,14 @@ export function listPayments() {
     return {
       ...payment,
       ownerName: invoice?.ownerName ?? 'Unknown Owner',
+      facultyId: invoice?.facultyId,
+      departmentId: invoice?.departmentId,
+      programmeId: invoice?.programmeId,
+      levelId: invoice?.levelId,
+      facultyName: invoice?.facultyName ?? 'General',
+      departmentName: invoice?.departmentName ?? 'General',
       programmeName: invoice?.programmeName ?? 'General',
+      levelName: invoice?.levelName ?? 'N/A',
       invoiceNumber: invoice?.invoiceNumber ?? 'N/A',
       invoiceStatus: invoice?.status ?? 'unpaid',
     };
@@ -364,6 +420,7 @@ export function getInvoiceById(invoiceId: string) {
 
 export function listRegistrations() {
   const data = getData();
+  const levelLookup = new Map(data.levels.map((level) => [level.id, level]));
 
   return data.registrations.map((registration) => {
     const student = data.students.find((item) => item.id === registration.studentId)!;
@@ -377,9 +434,14 @@ export function listRegistrations() {
       ...registration,
       studentName: student.fullName,
       matricNumber: student.matricNumber,
+      facultyId: student.facultyId,
+      departmentId: student.departmentId,
+      programmeId: student.programmeId,
+      levelId: student.levelId,
       facultyName: facultyNameForProgramme(student.programmeId),
       departmentName: departmentName(student.departmentId),
       programmeName: programmeName(student.programmeId),
+      levelName: levelLookup.get(student.levelId)?.name ?? 'Unknown Level',
       courseCodes: registrationCourses,
     };
   });
@@ -406,6 +468,7 @@ export function getRegistrationByStudentAndSemester(studentId: string, semesterI
 
 export function listResultSummaries() {
   const data = getData();
+  const levelLookup = new Map(data.levels.map((level) => [level.id, level]));
 
   return data.registrations.map((registration) => {
     const student = data.students.find((item) => item.id === registration.studentId)!;
@@ -420,8 +483,14 @@ export function listResultSummaries() {
       studentId: student.id,
       studentName: student.fullName,
       matricNumber: student.matricNumber,
+      facultyId: student.facultyId,
+      departmentId: student.departmentId,
+      programmeId: student.programmeId,
+      levelId: student.levelId,
+      facultyName: facultyNameForProgramme(student.programmeId),
       departmentName: departmentName(student.departmentId),
       programmeName: programmeName(student.programmeId),
+      levelName: levelLookup.get(student.levelId)?.name ?? 'Unknown Level',
       approvalStatus: entries.some((item) => item.status === 'not_submitted')
         ? 'not_submitted'
         : entries.some((item) => item.status === 'pending')
@@ -447,6 +516,8 @@ export function getDepartmentResultSummary() {
 
     return {
       departmentId: department.id,
+      facultyId: department.facultyId,
+      facultyName: facultyName(department.facultyId),
       departmentName: department.name,
       students: departmentStudents.length,
       carryovers: departmentResults.filter((item) => item.carryover).length,

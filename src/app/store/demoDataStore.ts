@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { universitySeed } from '../../data/seeds/university';
 import type {
   Applicant,
@@ -15,6 +15,62 @@ import type {
 } from '../../types/domain';
 
 const STORAGE_KEY = 'unicare-demo-data-v4';
+const memoryStorage = new Map<string, string>();
+
+function createSafeDemoStorage(): StateStorage {
+  return {
+    getItem: (name) => {
+      const memoryValue = memoryStorage.get(name) ?? null;
+
+      if (typeof window === 'undefined') {
+        return memoryValue;
+      }
+
+      try {
+        return window.localStorage.getItem(name) ?? memoryValue;
+      } catch {
+        return memoryValue;
+      }
+    },
+    setItem: (name, value) => {
+      memoryStorage.set(name, value);
+
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        window.localStorage.setItem(name, value);
+      } catch (error) {
+        if (error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+          try {
+            window.localStorage.removeItem(name);
+          } catch {
+            // Ignore cleanup failures and keep the in-memory copy.
+          }
+
+          console.warn('Demo data exceeded browser storage quota. Changes will continue in memory for this session.');
+          return;
+        }
+
+        throw error;
+      }
+    },
+    removeItem: (name) => {
+      memoryStorage.delete(name);
+
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        window.localStorage.removeItem(name);
+      } catch {
+        // Ignore storage cleanup failures.
+      }
+    },
+  };
+}
 
 interface ActionResult {
   ok: boolean;
@@ -1223,7 +1279,7 @@ export const useDemoDataStore = create<DemoDataState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(createSafeDemoStorage),
       partialize: (state) => ({ data: state.data, revision: state.revision }),
     },
   ),

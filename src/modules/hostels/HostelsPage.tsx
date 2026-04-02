@@ -12,18 +12,20 @@ import { listHostelBlocks, listRoomAssignments, listStudents, listVacantRooms } 
 import { statusTone } from '../../lib/status';
 import { toast } from '../../lib/toast';
 
-type HostelView = 'directory' | 'assignments' | 'vacancies';
+type HostelView = 'overview' | 'allocation';
+type AllocationMode = 'assigned' | 'vacant';
 
 interface HostelsPageProps {
   view?: HostelView;
 }
 
-export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
+export function HostelsPage({ view = 'overview' }: HostelsPageProps) {
   useDemoRevision();
   const assignRoom = useDemoDataStore((state) => state.assignRoom);
   const vacateAssignment = useDemoDataStore((state) => state.vacateAssignment);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [blockFilter, setBlockFilter] = useState('all');
+  const [allocationMode, setAllocationMode] = useState<AllocationMode>('assigned');
   const [assignDraft, setAssignDraft] = useState({ studentId: '', roomId: '' });
   const [formError, setFormError] = useState('');
 
@@ -31,41 +33,33 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
   const allAssignments = listRoomAssignments();
   const vacantRooms = listVacantRooms();
   const allStudents = listStudents();
-
-  const totalBeds = blocks.reduce((sum, b) => sum + b.totalBeds, 0);
-  const occupiedBeds = blocks.reduce((sum, b) => sum + b.occupiedBeds, 0);
-  const vacantBeds = totalBeds - occupiedBeds;
-  const occupancyRate = totalBeds ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
-
-  const assignments = allAssignments.filter((a) => blockFilter === 'all' || a.blockId === blockFilter);
-
-  // Students not already assigned this session
-  const assignedStudentIds = new Set(allAssignments.filter((a) => a.status !== 'vacated').map((a) => a.studentId));
-  const unassignedStudents = allStudents.filter((s) => s.status === 'active' && !assignedStudentIds.has(s.id));
-
-  const filteredVacantRooms = vacantRooms.filter((r) => blockFilter === 'all' || r.blockId === blockFilter);
-
   const pageContent: Record<HostelView, { eyebrow: string; title: string; description: string }> = {
-    directory: {
+    overview: {
       eyebrow: 'Hostel management',
-      title: 'Hostel directory',
-      description: 'An overview of all residential halls, their capacity, and current occupancy status.',
+      title: 'Hostel overview',
+      description: 'A residential overview of hostel blocks, occupancy posture, and space availability across the estate.',
     },
-    assignments: {
+    allocation: {
       eyebrow: 'Hostel management',
-      title: 'Room assignments',
-      description: 'Track which students are assigned to which rooms across all halls of residence.',
-    },
-    vacancies: {
-      eyebrow: 'Hostel management',
-      title: 'Bed vacancies',
-      description: 'Rooms with available bed spaces, useful for new assignments and transfers.',
+      title: 'Hostel allocation',
+      description: 'One operational workbench for room assignments and current vacancies instead of split residential tables.',
     },
   };
 
+  const totalBeds = blocks.reduce((sum, block) => sum + block.totalBeds, 0);
+  const occupiedBeds = blocks.reduce((sum, block) => sum + block.occupiedBeds, 0);
+  const vacantBeds = totalBeds - occupiedBeds;
+  const occupancyRate = totalBeds ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
+  const assignments = allAssignments.filter((assignment) => blockFilter === 'all' || assignment.blockId === blockFilter);
+  const filteredVacantRooms = vacantRooms.filter((room) => blockFilter === 'all' || room.blockId === blockFilter);
+
+  const assignedStudentIds = new Set(allAssignments.filter((assignment) => assignment.status !== 'vacated').map((assignment) => assignment.studentId));
+  const unassignedStudents = allStudents.filter((student) => student.status === 'active' && !assignedStudentIds.has(student.id));
+  const modalRoomOptions = blockFilter === 'all' ? vacantRooms : filteredVacantRooms;
+
   const assignmentColumns = [
     createColumnHelper<(typeof assignments)[number]>().accessor('studentName', { header: 'Student', cell: (info) => info.getValue() }),
-    createColumnHelper<(typeof assignments)[number]>().accessor('matricNumber', { header: 'Matric No.', cell: (info) => info.getValue() }),
+    createColumnHelper<(typeof assignments)[number]>().accessor('matricNumber', { header: 'Matric no', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof assignments)[number]>().accessor('blockName', { header: 'Block', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof assignments)[number]>().accessor('roomNumber', { header: 'Room', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof assignments)[number]>().accessor('status', {
@@ -82,7 +76,12 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
             className="ghost-button ghost-button--sm"
             onClick={() => {
               const result = vacateAssignment(info.row.original.id);
-              result.ok ? toast.success(result.message) : toast.error(result.message);
+              if (result.ok) {
+                toast.success(result.message);
+                return;
+              }
+
+              toast.error(result.message);
             }}
           >
             Vacate
@@ -101,7 +100,7 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
   ];
 
   function openAssignModal() {
-    setAssignDraft({ studentId: unassignedStudents[0]?.id ?? '', roomId: vacantRooms[0]?.id ?? '' });
+    setAssignDraft({ studentId: unassignedStudents[0]?.id ?? '', roomId: modalRoomOptions[0]?.id ?? '' });
     setFormError('');
     setShowAssignModal(true);
   }
@@ -123,9 +122,11 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
         title={pageContent[view].title}
         description={pageContent[view].description}
         actions={
-          <button type="button" className="primary-button" onClick={openAssignModal}>
-            Assign student
-          </button>
+          view === 'allocation' ? (
+            <button type="button" className="primary-button" onClick={openAssignModal}>
+              Assign student
+            </button>
+          ) : null
         }
       />
 
@@ -136,7 +137,7 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
         <StatCard label="Occupancy rate" value={`${occupancyRate}%`} meta="Current utilisation of hostel capacity." />
       </div>
 
-      {view === 'directory' ? (
+      {view === 'overview' ? (
         <div className="triple-grid">
           {blocks.map((block) => (
             <SectionCard
@@ -144,7 +145,7 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
               title={block.name}
               subtitle={`${block.location} • ${block.type} hall • ${block.totalRooms} rooms`}
               aside={
-                <Link to={`/hostels/directory/${block.id}`} className="ghost-button ghost-button--sm">
+                <Link to={`/hostels/overview/${block.id}`} className="ghost-button ghost-button--sm">
                   View rooms
                 </Link>
               }
@@ -164,33 +165,32 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
         </div>
       ) : null}
 
-      {view === 'assignments' ? (
+      {view === 'allocation' ? (
         <SectionCard
-          title="Room assignment register"
-          subtitle="All current and past room assignments across halls."
+          title={allocationMode === 'assigned' ? 'Room assignments' : 'Vacant rooms'}
+          subtitle="Operational filters and actions stay on the allocation table itself."
           aside={
-            <select value={blockFilter} onChange={(e) => setBlockFilter(e.target.value)}>
-              <option value="all">All blocks</option>
-              {blocks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            <div className="table-toolbar">
+              <select value={allocationMode} onChange={(event) => setAllocationMode(event.target.value as AllocationMode)}>
+                <option value="assigned">Assigned</option>
+                <option value="vacant">Vacant</option>
+              </select>
+              <select value={blockFilter} onChange={(event) => setBlockFilter(event.target.value)}>
+                <option value="all">All blocks</option>
+                {blocks.map((block) => (
+                  <option key={block.id} value={block.id}>
+                    {block.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           }
         >
-          <DataTable data={assignments} columns={assignmentColumns} exportFilename="hostel-assignments" />
-        </SectionCard>
-      ) : null}
-
-      {view === 'vacancies' ? (
-        <SectionCard
-          title="Available bed spaces"
-          subtitle="Rooms with at least one unoccupied bed."
-          aside={
-            <select value={blockFilter} onChange={(e) => setBlockFilter(e.target.value)}>
-              <option value="all">All blocks</option>
-              {blocks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          }
-        >
-          <DataTable data={filteredVacantRooms} columns={vacancyColumns} exportFilename="hostel-vacancies" />
+          {allocationMode === 'assigned' ? (
+            <DataTable data={assignments} columns={assignmentColumns} exportFilename="hostel-assignments" />
+          ) : (
+            <DataTable data={filteredVacantRooms} columns={vacancyColumns} exportFilename="hostel-vacancies" />
+          )}
         </SectionCard>
       ) : null}
 
@@ -201,27 +201,35 @@ export function HostelsPage({ view = 'directory' }: HostelsPageProps) {
           onClose={() => setShowAssignModal(false)}
           footer={
             <>
-              <button type="button" className="ghost-button" onClick={() => setShowAssignModal(false)}>Cancel</button>
-              <button type="button" className="primary-button" onClick={handleAssign}>Assign</button>
+              <button type="button" className="ghost-button" onClick={() => setShowAssignModal(false)}>
+                Cancel
+              </button>
+              <button type="button" className="primary-button" onClick={handleAssign}>
+                Assign
+              </button>
             </>
           }
         >
           <div className="form-grid">
             <label className="field-group">
               <span>Student</span>
-              <select value={assignDraft.studentId} onChange={(e) => setAssignDraft((d) => ({ ...d, studentId: e.target.value }))}>
+              <select value={assignDraft.studentId} onChange={(event) => setAssignDraft((current) => ({ ...current, studentId: event.target.value }))}>
                 {unassignedStudents.length === 0 ? <option value="">No unassigned students</option> : null}
-                {unassignedStudents.map((s) => (
-                  <option key={s.id} value={s.id}>{s.fullName} ({s.matricNumber}) — {s.gender}</option>
+                {unassignedStudents.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.fullName} ({student.matricNumber}) — {student.gender}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="field-group">
               <span>Room</span>
-              <select value={assignDraft.roomId} onChange={(e) => setAssignDraft((d) => ({ ...d, roomId: e.target.value }))}>
-                {vacantRooms.length === 0 ? <option value="">No vacant rooms</option> : null}
-                {vacantRooms.map((r) => (
-                  <option key={r.id} value={r.id}>{r.blockName} — {r.roomNumber} ({r.blockType}, {r.vacantBeds} bed{r.vacantBeds !== 1 ? 's' : ''} free)</option>
+              <select value={assignDraft.roomId} onChange={(event) => setAssignDraft((current) => ({ ...current, roomId: event.target.value }))}>
+                {modalRoomOptions.length === 0 ? <option value="">No vacant rooms</option> : null}
+                {modalRoomOptions.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.blockName} — {room.roomNumber} ({room.blockType}, {room.vacantBeds} bed{room.vacantBeds !== 1 ? 's' : ''} free)
+                  </option>
                 ))}
               </select>
             </label>

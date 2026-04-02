@@ -236,56 +236,90 @@ button {
   position: sticky;
   top: 0;
   z-index: 20;
-  min-height: 60px;
+  min-height: 52px;
   background: rgba(255, 255, 255, 0.88);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(12px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 10px 0;
+  padding: 10px 12px;
 }
 
-.topbar__route {
-  min-width: 180px;
+.topbar__main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
 }
 
-.topbar__eyebrow {
-  margin: 0 0 2px;
-  color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.topbar h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.topbar__route-meta {
-  display: block;
-  margin-top: 2px;
+.topbar__breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 18px;
   color: var(--muted);
   font-size: 12px;
 }
 
-.topbar__controls {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+.topbar__breadcrumb-item {
+  display: inline-flex;
   align-items: center;
+  gap: 4px;
 }
 
-.topbar label {
-  display: grid;
-  gap: 4px;
+.topbar__breadcrumb-link {
   color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+}
+
+.topbar__breadcrumb-link:hover {
+  color: var(--accent);
+}
+
+.topbar__breadcrumb-current {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.topbar__breadcrumb-separator {
+  color: #9aabbd;
+}
+
+.topbar__copy {
+  display: grid;
+  gap: 6px;
+}
+
+.topbar__copy h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.topbar__copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.topbar__page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.topbar__controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
 }
 
 .topbar select,
@@ -388,7 +422,7 @@ textarea:focus {
 }
 
 .page-shell {
-  padding-top: 16px;
+  padding-top: 12px;
 }
 
 .page-grid {
@@ -473,6 +507,7 @@ textarea:focus {
 
 .stat-card,
 .section-card,
+.scope-panel,
 .hero-panel,
 .table-shell,
 .empty-state {
@@ -509,6 +544,10 @@ textarea:focus {
   padding: 16px;
 }
 
+.scope-panel {
+  padding: 16px 18px;
+}
+
 .section-card__header {
   display: flex;
   justify-content: space-between;
@@ -517,6 +556,60 @@ textarea:focus {
   padding-bottom: 10px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
+}
+
+.scope-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.scope-panel__header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.scope-panel__header p,
+.scope-panel__summary p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.scope-panel__summary {
+  min-width: 220px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  border-radius: 12px;
+}
+
+.scope-panel__summary strong {
+  display: block;
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.scope-panel__summary span {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.scope-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .section-card h2 {
@@ -781,6 +874,13 @@ tbody tr:hover {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.table-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .button-row,
@@ -1075,6 +1175,7 @@ tbody tr:hover {
   .split-grid,
   .split-grid--wide,
   .info-grid,
+  .scope-panel__grid,
   .dependency-grid,
   .selection-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1119,6 +1220,7 @@ tbody tr:hover {
   .topbar,
   .context-banner,
   .page-header,
+  .scope-panel__header,
   .modal-card__header,
   .modal-card__footer,
   .section-card__header,
@@ -1134,6 +1236,7 @@ tbody tr:hover {
   .split-grid,
   .split-grid--wide,
   .info-grid,
+  .scope-panel__grid,
   .form-grid,
   .dependency-grid,
   .selection-grid {
@@ -1142,11 +1245,13 @@ tbody tr:hover {
 
   .topbar__controls {
     width: 100%;
+    justify-content: flex-start;
   }
 
   .topbar select,
   .search-input,
-  select {
+  select,
+  .scope-panel__summary {
     min-width: 100%;
   }
 

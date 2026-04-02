@@ -14,6 +14,7 @@ import { ResultsPage } from '../modules/results/ResultsPage';
 import { SettingsPage } from '../modules/settings/SettingsPage';
 import { StudentDetailPage } from '../modules/students/StudentDetailPage';
 import { StudentsPage } from '../modules/students/StudentsPage';
+import { LegacyApplicantRedirect, LegacyHostelRedirect, LegacyStudentRedirect } from './LegacyRouteRedirects';
 import { UsersPage } from '../modules/users/UsersPage';
 
 export const router = createBrowserRouter([
@@ -32,17 +33,23 @@ export const router = createBrowserRouter([
       { path: '/academic-structure/sessions', element: <AcademicStructurePage view="sessions" /> },
       { path: '/academic-structure/courses', element: <AcademicStructurePage view="courses" /> },
 
-      { path: '/registry', element: <Navigate to="/registry/applicants" replace /> },
-      { path: '/registry/applicants', element: <AdmissionsPage view="applicants" /> },
-      { path: '/registry/applicants/:applicantId', element: <ApplicantDetailPage /> },
-      { path: '/registry/offers', element: <AdmissionsPage view="offers" /> },
-      { path: '/registry/clearance', element: <AdmissionsPage view="clearance" /> },
+      { path: '/admissions', element: <Navigate to="/admissions/applications" replace /> },
+      { path: '/admissions/applications', element: <AdmissionsPage view="applications" /> },
+      { path: '/admissions/applications/:applicantId', element: <ApplicantDetailPage /> },
+      { path: '/admissions/clearance', element: <AdmissionsPage view="clearance" /> },
+      { path: '/registry', element: <Navigate to="/admissions/applications" replace /> },
+      { path: '/registry/applicants', element: <Navigate to="/admissions/applications" replace /> },
+      { path: '/registry/applicants/:applicantId', element: <LegacyApplicantRedirect /> },
+      { path: '/registry/offers', element: <Navigate to="/admissions/applications" replace /> },
+      { path: '/registry/clearance', element: <Navigate to="/admissions/clearance" replace /> },
 
-      { path: '/students', element: <Navigate to="/students/directory" replace /> },
-      { path: '/students/directory', element: <StudentsPage view="directory" /> },
-      { path: '/students/profiles', element: <StudentsPage view="profiles" /> },
-      { path: '/students/profiles/:studentId', element: <StudentDetailPage /> },
+      { path: '/students', element: <Navigate to="/students/records" replace /> },
+      { path: '/students/records', element: <StudentsPage view="records" /> },
+      { path: '/students/records/:studentId', element: <StudentDetailPage /> },
       { path: '/students/standing', element: <StudentsPage view="standing" /> },
+      { path: '/students/directory', element: <Navigate to="/students/records" replace /> },
+      { path: '/students/profiles', element: <Navigate to="/students/records" replace /> },
+      { path: '/students/profiles/:studentId', element: <LegacyStudentRedirect /> },
 
       { path: '/finance', element: <Navigate to="/finance/templates" replace /> },
       { path: '/finance/templates', element: <FinancePage view="templates" /> },
@@ -51,11 +58,14 @@ export const router = createBrowserRouter([
       { path: '/finance/payments', element: <FinancePage view="payments" /> },
       { path: '/finance/holds', element: <FinancePage view="holds" /> },
 
-      { path: '/hostels', element: <Navigate to="/hostels/directory" replace /> },
-      { path: '/hostels/directory', element: <HostelsPage view="directory" /> },
-      { path: '/hostels/directory/:hostelId', element: <HostelDetailPage /> },
-      { path: '/hostels/assignments', element: <HostelsPage view="assignments" /> },
-      { path: '/hostels/vacancies', element: <HostelsPage view="vacancies" /> },
+      { path: '/hostels', element: <Navigate to="/hostels/overview" replace /> },
+      { path: '/hostels/overview', element: <HostelsPage view="overview" /> },
+      { path: '/hostels/overview/:hostelId', element: <HostelDetailPage /> },
+      { path: '/hostels/allocation', element: <HostelsPage view="allocation" /> },
+      { path: '/hostels/directory', element: <Navigate to="/hostels/overview" replace /> },
+      { path: '/hostels/directory/:hostelId', element: <LegacyHostelRedirect /> },
+      { path: '/hostels/assignments', element: <Navigate to="/hostels/allocation" replace /> },
+      { path: '/hostels/vacancies', element: <Navigate to="/hostels/allocation" replace /> },
 
       { path: '/course-registration', element: <Navigate to="/course-registration/queue" replace /> },
       { path: '/course-registration/queue', element: <CourseRegistrationPage view="queue" /> },

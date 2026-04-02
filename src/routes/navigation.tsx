@@ -52,14 +52,13 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    id: 'registry',
-    label: 'Registry',
+    id: 'admissions',
+    label: 'Admissions',
     icon: <ClipboardList size={ICON_SIZE} />,
-    basePath: '/registry',
+    basePath: '/admissions',
     items: [
-      { id: 'applicants', label: 'Applicants', to: '/registry/applicants', matchPrefix: '/registry/applicants' },
-      { id: 'offers', label: 'Admission Offers', to: '/registry/offers' },
-      { id: 'clearance', label: 'Clearance Queue', to: '/registry/clearance' },
+      { id: 'applications', label: 'Applications', to: '/admissions/applications', matchPrefix: '/admissions/applications' },
+      { id: 'clearance', label: 'Clearance', to: '/admissions/clearance' },
     ],
   },
   {
@@ -68,8 +67,7 @@ export const navSections: NavSection[] = [
     icon: <GraduationCap size={ICON_SIZE} />,
     basePath: '/students',
     items: [
-      { id: 'directory', label: 'Student Directory', to: '/students/directory' },
-      { id: 'profiles', label: 'Student Profiles', to: '/students/profiles', matchPrefix: '/students/profiles' },
+      { id: 'records', label: 'Records', to: '/students/records', matchPrefix: '/students/records' },
       { id: 'standing', label: 'Academic Standing', to: '/students/standing' },
     ],
   },
@@ -91,9 +89,8 @@ export const navSections: NavSection[] = [
     icon: <Hotel size={ICON_SIZE} />,
     basePath: '/hostels',
     items: [
-      { id: 'directory', label: 'Hostel Directory', to: '/hostels/directory', matchPrefix: '/hostels/directory' },
-      { id: 'assignments', label: 'Assignments', to: '/hostels/assignments' },
-      { id: 'vacancies', label: 'Vacancies', to: '/hostels/vacancies' },
+      { id: 'overview', label: 'Overview', to: '/hostels/overview', matchPrefix: '/hostels/overview' },
+      { id: 'allocation', label: 'Allocation', to: '/hostels/allocation' },
     ],
   },
   {

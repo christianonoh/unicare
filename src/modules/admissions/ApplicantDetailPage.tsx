@@ -94,7 +94,12 @@ export function ApplicantDetailPage() {
   const { applicant, faculty, department, programme, officer, invoice, linkedStudent } = detail;
 
   function handleResult(message: string, ok = true) {
-    ok ? toast.success(message) : toast.error(message);
+    if (ok) {
+      toast.success(message);
+      return;
+    }
+
+    toast.error(message);
   }
 
   function handleDocumentCycle(documentName: string) {
@@ -106,7 +111,7 @@ export function ApplicantDetailPage() {
     const result = convertApplicantToStudent(applicant.id);
     handleResult(result.message);
     if (result.ok && result.id) {
-      navigate(`/students/profiles/${result.id}`);
+      navigate(`/students/records/${result.id}`);
     }
   }
 
@@ -134,7 +139,7 @@ export function ApplicantDetailPage() {
               Edit record
             </button>
             {linkedStudent ? (
-              <Link className="primary-button" to={`/students/profiles/${linkedStudent.id}`}>
+              <Link className="primary-button" to={`/students/records/${linkedStudent.id}`}>
                 View student
               </Link>
             ) : (

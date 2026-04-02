@@ -1,11 +1,12 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { useState } from 'react';
 import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
+import { AcademicScopePanel } from '../../components/AcademicScopePanel';
 import { DataTable } from '../../components/DataTable';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatusBadge } from '../../components/StatusBadge';
-import { getDepartmentResultSummary, getStudentProfile, listResultSummaries } from '../../data/services/universityData';
+import { getAcademicScopeOptions, getDepartmentResultSummary, getStudentProfile, listResultSummaries, matchesAcademicScope } from '../../data/services/universityData';
 import { statusTone } from '../../lib/status';
 import { toast } from '../../lib/toast';
 
@@ -15,31 +16,56 @@ interface ResultsPageProps {
   view?: ResultsView;
 }
 
+const approvalQueueStatuses = new Set(['not_submitted', 'pending', 'approved']);
+
 export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
   useDemoRevision();
+  const [facultyId, setFacultyId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [programmeId, setProgrammeId] = useState('');
+  const [levelId, setLevelId] = useState('');
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState(view === 'approval' ? 'approval-queue' : 'all');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editCA, setEditCA] = useState(0);
   const [editExam, setEditExam] = useState(0);
   const updateResultEntry = useDemoDataStore((state) => state.updateResultEntry);
   const approveResult = useDemoDataStore((state) => state.approveResult);
+  const { faculties, departments, programmes, levels } = getAcademicScopeOptions({ facultyId, departmentId });
   const allSummaries = listResultSummaries();
-  const summaries = allSummaries.filter((summary) => {
-    if (view === 'approval') {
-      return summary.approvalStatus === 'pending' || summary.approvalStatus === 'not_submitted';
-    }
-    return true;
-  });
   const departmentSummary = getDepartmentResultSummary();
-  const detail = selectedStudentId ? getStudentProfile(selectedStudentId) : null;
-  const pageContent: Record<ResultsView, { title: string; description: string }> = {
+  const hasRequiredScope = view === 'departments' ? true : Boolean(facultyId && departmentId);
+  const scopedSummaries = allSummaries.filter((summary) => matchesAcademicScope(summary, { facultyId, departmentId, programmeId, levelId }));
+  const summaries = scopedSummaries.filter((summary) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery =
+      !normalizedQuery ||
+      summary.studentName.toLowerCase().includes(normalizedQuery) ||
+      summary.matricNumber.toLowerCase().includes(normalizedQuery) ||
+      summary.programmeName.toLowerCase().includes(normalizedQuery);
+    const matchesStatus =
+      view === 'approval'
+        ? statusFilter === 'approval-queue'
+          ? approvalQueueStatuses.has(summary.approvalStatus)
+          : summary.approvalStatus === statusFilter
+        : statusFilter === 'all'
+          ? true
+          : summary.approvalStatus === statusFilter;
+
+    return matchesQuery && matchesStatus;
+  });
+  const detail = selectedStudentId && summaries.some((summary) => summary.studentId === selectedStudentId) ? getStudentProfile(selectedStudentId) : null;
+  const pageContent: Record<ResultsView, { title: string; description: string; sectionEmptyMessage?: string }> = {
     'score-entry': {
       title: 'Score entry',
-      description: 'A lecturer and departmental view of semester result rows, student averages, and score-sheet inspection.',
+      description: 'A lecturer and departmental workbench for semester result rows, student averages, and score-sheet inspection.',
+      sectionEmptyMessage: 'Choose a faculty and department to load result rows.',
     },
     approval: {
       title: 'Approval queue',
-      description: 'Result bundles still awaiting lecturer submission, departmental review, or faculty sign-off.',
+      description: 'Result bundles still awaiting lecturer submission, departmental review, or faculty sign-off, now narrowed by academic ownership first.',
+      sectionEmptyMessage: 'Choose a faculty and department to load approval cases.',
     },
     departments: {
       title: 'Department summaries',
@@ -54,15 +80,49 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
   }
 
   function saveEdit() {
-    if (!editingId) return;
+    if (!editingId) {
+      return;
+    }
+
     const result = updateResultEntry(editingId, editCA, editExam);
-    result.ok ? toast.success(result.message) : toast.error(result.message);
-    if (result.ok) setEditingId(null);
+    if (result.ok) {
+      toast.success(result.message);
+      setEditingId(null);
+      return;
+    }
+
+    toast.error(result.message);
   }
 
   function handleApprove(resultId: string) {
     const result = approveResult(resultId);
-    result.ok ? toast.success(result.message) : toast.error(result.message);
+    if (result.ok) {
+      toast.success(result.message);
+      return;
+    }
+
+    toast.error(result.message);
+  }
+
+  function handleFacultyChange(value: string) {
+    setFacultyId(value);
+    setDepartmentId('');
+    setProgrammeId('');
+    setLevelId('');
+    setSelectedStudentId(null);
+  }
+
+  function handleDepartmentChange(value: string) {
+    setDepartmentId(value);
+    setProgrammeId('');
+    setLevelId('');
+    setSelectedStudentId(null);
+  }
+
+  function handleProgrammeChange(value: string) {
+    setProgrammeId(value);
+    setLevelId('');
+    setSelectedStudentId(null);
   }
 
   const columns = [
@@ -74,7 +134,8 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
         </button>
       ),
     }),
-    createColumnHelper<(typeof summaries)[number]>().accessor('departmentName', { header: 'Department', cell: (info) => info.getValue() }),
+    createColumnHelper<(typeof summaries)[number]>().accessor('programmeName', { header: 'Programme', cell: (info) => info.getValue() }),
+    createColumnHelper<(typeof summaries)[number]>().accessor('levelName', { header: 'Level', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof summaries)[number]>().accessor('averageScore', { header: 'Average', cell: (info) => info.getValue().toFixed(1) }),
     createColumnHelper<(typeof summaries)[number]>().accessor('carryovers', { header: 'Carryovers', cell: (info) => info.getValue() }),
     createColumnHelper<(typeof summaries)[number]>().accessor('approvalStatus', {
@@ -99,6 +160,29 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
         ))}
       </div>
 
+      {view !== 'departments' ? (
+        <AcademicScopePanel
+          title="Academic scope"
+          description="Choose ownership first so result processing loads in the correct faculty and department context."
+          facultyId={facultyId}
+          departmentId={departmentId}
+          programmeId={programmeId}
+          levelId={levelId}
+          faculties={faculties.map((faculty) => ({ id: faculty.id, label: faculty.name }))}
+          departments={departments.map((department) => ({ id: department.id, label: department.name }))}
+          programmes={programmes.map((programme) => ({ id: programme.id, label: `${programme.award} ${programme.name}` }))}
+          levels={levels.map((level) => ({ id: level.id, label: level.name }))}
+          resultLabel="result bundles in scope"
+          resultCount={hasRequiredScope ? scopedSummaries.length : 0}
+          resultMeta="Page-level scope narrows the ledger before search and status refine the rows below."
+          emptyMessage={pageContent[view].sectionEmptyMessage ?? 'Choose a faculty and department to load result rows.'}
+          onFacultyChange={handleFacultyChange}
+          onDepartmentChange={handleDepartmentChange}
+          onProgrammeChange={handleProgrammeChange}
+          onLevelChange={setLevelId}
+        />
+      ) : null}
+
       {view === 'departments' ? (
         <SectionCard title="Department publication posture" subtitle="Publication readiness and carryover count by department.">
           <div className="list-stack">
@@ -120,9 +204,38 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
         <div className="split-grid split-grid--wide">
           <SectionCard
             title={view === 'approval' ? 'Result approval ledger' : 'Score-entry ledger'}
-            subtitle="A browsable list of result bundles by student and registration pack."
+            subtitle="Search and status only refine already-scoped result bundles."
+            aside={
+              <div className="table-toolbar">
+                <input
+                  className="search-input"
+                  placeholder="Search student, matric number, or programme"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  disabled={!hasRequiredScope}
+                />
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} disabled={!hasRequiredScope}>
+                  {view === 'approval' ? (
+                    <>
+                      <option value="approval-queue">All approval cases</option>
+                      <option value="not_submitted">Not submitted</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="all">All states</option>
+                      <option value="not_submitted">Not submitted</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="published">Published</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            }
           >
-            <DataTable data={summaries} columns={columns} />
+            {hasRequiredScope ? <DataTable data={summaries} columns={columns} /> : <div className="empty-state">{pageContent[view].sectionEmptyMessage}</div>}
           </SectionCard>
           <SectionCard title="Selected score sheet" subtitle={view === 'score-entry' ? 'Click Edit to modify CA and exam scores for each course.' : 'Approve or publish individual result entries.'}>
             {detail ? (
@@ -136,11 +249,11 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
                           <div className="score-edit-row">
                             <label>
                               CA
-                              <input type="number" min={0} max={40} value={editCA} onChange={(e) => setEditCA(Number(e.target.value))} style={{ width: 60 }} />
+                              <input type="number" min={0} max={40} value={editCA} onChange={(event) => setEditCA(Number(event.target.value))} style={{ width: 60 }} />
                             </label>
                             <label>
                               Exam
-                              <input type="number" min={0} max={60} value={editExam} onChange={(e) => setEditExam(Number(e.target.value))} style={{ width: 60 }} />
+                              <input type="number" min={0} max={60} value={editExam} onChange={(event) => setEditExam(Number(event.target.value))} style={{ width: 60 }} />
                             </label>
                           </div>
                         </div>

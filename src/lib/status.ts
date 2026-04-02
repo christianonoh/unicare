@@ -1,5 +1,5 @@
 export function statusTone(status: string) {
-  if (['approved', 'paid', 'successful', 'published', 'accepted', 'active'].includes(status)) {
+  if (['approved', 'paid', 'successful', 'published', 'accepted', 'active', 'occupied'].includes(status)) {
     return 'approved' as const;
   }
 
@@ -15,7 +15,7 @@ export function statusTone(status: string) {
     return 'carryover' as const;
   }
 
-  if (['inactive', 'declined', 'failed'].includes(status)) {
+  if (['inactive', 'declined', 'failed', 'vacated'].includes(status)) {
     return 'inactive' as const;
   }
 

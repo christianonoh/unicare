@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useDemoDataStore, useDemoRevision } from '../app/store/demoDataStore';
 import { getCurrentActors } from '../data/services/universityData';
 import { useAppStore } from '../app/store/appStore';
 import { getActiveChild, getActiveSection, navSections } from '../routes/navigation';
+import { ToastContainer } from '../components/ToastContainer';
+import { toast } from '../lib/toast';
 
 export function AdminLayout() {
+  useDemoRevision();
   const { users, sessions, semesters } = getCurrentActors();
+  const resetDemoData = useDemoDataStore((state) => state.resetDemoData);
   const location = useLocation();
   const {
     selectedSessionId,
@@ -18,7 +23,7 @@ export function AdminLayout() {
     setSidebarOpen,
   } = useAppStore();
 
-  const currentUser = users.find((user) => user.id === selectedUserId) ?? users[0];
+  // const currentUser = users.find((user) => user.id === selectedUserId) ?? users[0];
   const activeSection = useMemo(() => getActiveSection(location.pathname), [location.pathname]);
   const activeRoute = useMemo(() => getActiveChild(location.pathname), [location.pathname]);
   const [openSectionId, setOpenSectionId] = useState(activeSection.id);
@@ -32,10 +37,10 @@ export function AdminLayout() {
       <aside className={sidebarOpen ? 'sidebar is-mobile-open' : 'sidebar'}>
         <div className="sidebar__inner">
           <div className="brand-block">
-            <span className="brand-mark">UN</span>
+            <img src="/media/icon.png" alt="Unicare" className="brand-logo" />
             <div>
-              <strong>Unicare University</strong>
-              <p>Student information system</p>
+              <strong>Educare University</strong>
+              <p>Admin Portal</p>
             </div>
           </div>
 
@@ -81,10 +86,10 @@ export function AdminLayout() {
             </nav>
           </div>
 
-          <div className="sidebar-footnote">
+          {/* <div className="sidebar-footnote">
             <strong>Phase 1</strong>
             <p>Registry, student records, fees, course registration, results, reporting.</p>
-          </div>
+          </div> */}
         </div>
       </aside>
 
@@ -101,6 +106,18 @@ export function AdminLayout() {
             <span className="topbar__route-meta">{activeRoute.child.label}</span>
           </div>
           <div className="topbar__controls">
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => {
+                if (window.confirm('Reset the interactive demo data to the original seed state?')) {
+                  resetDemoData();
+                  toast.info('Demo data reset to seed state');
+                }
+              }}
+            >
+              Reset demo
+            </button>
             <label>
               Acting as
               <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
@@ -134,7 +151,7 @@ export function AdminLayout() {
           </div>
         </header>
 
-        <section className="context-banner">
+        {/* <section className="context-banner">
           <div>
             <span className="eyebrow">Active operator</span>
             <strong>{currentUser.name}</strong>
@@ -143,12 +160,14 @@ export function AdminLayout() {
             <span>{currentUser.email}</span>
             <span>{activeRoute.child.label}</span>
           </div>
-        </section>
+        </section> */}
 
         <div className="page-shell">
           <Outlet />
         </div>
       </main>
+
+      <ToastContainer />
     </div>
   );
 }

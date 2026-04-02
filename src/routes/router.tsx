@@ -6,6 +6,8 @@ import { ApplicantDetailPage } from '../modules/admissions/ApplicantDetailPage';
 import { CourseRegistrationPage } from '../modules/course-registration/CourseRegistrationPage';
 import { DashboardPage } from '../modules/dashboard/DashboardPage';
 import { FinancePage } from '../modules/finance/FinancePage';
+import { HostelDetailPage } from '../modules/hostels/HostelDetailPage';
+import { HostelsPage } from '../modules/hostels/HostelsPage';
 import { InvoiceDetailPage } from '../modules/finance/InvoiceDetailPage';
 import { ReportsPage } from '../modules/reports/ReportsPage';
 import { ResultsPage } from '../modules/results/ResultsPage';
@@ -48,6 +50,12 @@ export const router = createBrowserRouter([
       { path: '/finance/invoices/:invoiceId', element: <InvoiceDetailPage /> },
       { path: '/finance/payments', element: <FinancePage view="payments" /> },
       { path: '/finance/holds', element: <FinancePage view="holds" /> },
+
+      { path: '/hostels', element: <Navigate to="/hostels/directory" replace /> },
+      { path: '/hostels/directory', element: <HostelsPage view="directory" /> },
+      { path: '/hostels/directory/:hostelId', element: <HostelDetailPage /> },
+      { path: '/hostels/assignments', element: <HostelsPage view="assignments" /> },
+      { path: '/hostels/vacancies', element: <HostelsPage view="vacancies" /> },
 
       { path: '/course-registration', element: <Navigate to="/course-registration/queue" replace /> },
       { path: '/course-registration/queue', element: <CourseRegistrationPage view="queue" /> },

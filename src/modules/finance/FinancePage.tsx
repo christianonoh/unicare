@@ -1,14 +1,17 @@
 import { createColumnHelper } from '@tanstack/react-table';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { DataTable } from '../../components/DataTable';
+import { Modal } from '../../components/Modal';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatCard } from '../../components/StatCard';
 import { StatusBadge } from '../../components/StatusBadge';
-import { getReferenceData, listInvoices, listPayments } from '../../data/services/universityData';
+import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
+import { getReferenceData, listApplicants, listInvoices, listPayments, listStudents } from '../../data/services/universityData';
 import { formatCurrency } from '../../lib/formatters';
 import { statusTone } from '../../lib/status';
+import { toast } from '../../lib/toast';
 
 type FinanceView = 'templates' | 'invoices' | 'payments' | 'holds';
 
@@ -16,11 +19,31 @@ interface FinancePageProps {
   view?: FinanceView;
 }
 
+interface InvoiceDraft {
+  ownerType: 'student' | 'applicant';
+  ownerId: string;
+  feeTemplateId: string;
+  dueDate: string;
+}
+
 export function FinancePage({ view = 'templates' }: FinancePageProps) {
+  useDemoRevision();
+  const navigate = useNavigate();
+  const createInvoice = useDemoDataStore((state) => state.createInvoice);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+  const [formError, setFormError] = useState('');
   const { feeTemplates } = getReferenceData();
+  const applicantOptions = listApplicants().filter((applicant) => applicant.admissionStatus === 'offered' || applicant.admissionStatus === 'accepted');
+  const studentOptions = listStudents();
   const allInvoices = listInvoices();
   const allPayments = listPayments();
+  const [invoiceDraft, setInvoiceDraft] = useState<InvoiceDraft>({
+    ownerType: 'student' as const,
+    ownerId: studentOptions[0]?.id ?? '',
+    feeTemplateId: feeTemplates[0]?.id ?? '',
+    dueDate: '2026-04-30',
+  });
   const invoices = allInvoices.filter((invoice) => {
     const matchesView = view === 'holds' ? invoice.status === 'unpaid' || invoice.status === 'overdue' : view === 'invoices' ? true : false;
     const matchesStatus = statusFilter === 'all' ? true : invoice.status === statusFilter;
@@ -75,9 +98,47 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
     }),
   ];
 
+  const ownerOptions = invoiceDraft.ownerType === 'student' ? studentOptions : applicantOptions;
+
+  function openCreateInvoice(templateId?: string) {
+    setInvoiceDraft((current) => ({
+      ...current,
+      feeTemplateId: templateId ?? current.feeTemplateId,
+      ownerType: 'student',
+      ownerId: studentOptions[0]?.id ?? '',
+    }));
+    setFormError('');
+    setShowCreateInvoiceModal(true);
+  }
+
+  function handleCreateInvoice() {
+    const result = createInvoice(invoiceDraft);
+
+    if (!result.ok) {
+      setFormError(result.message);
+      return;
+    }
+
+    setShowCreateInvoiceModal(false);
+    setFormError('');
+    toast.success('Invoice created successfully.');
+    if (result.id) {
+      navigate(`/finance/invoices/${result.id}`);
+    }
+  }
+
   return (
     <div className="page-grid">
-      <PageHeader eyebrow={pageContent[view].eyebrow} title={pageContent[view].title} description={pageContent[view].description} />
+      <PageHeader
+        eyebrow={pageContent[view].eyebrow}
+        title={pageContent[view].title}
+        description={pageContent[view].description}
+        actions={
+          <button type="button" className="primary-button" onClick={() => openCreateInvoice()}>
+            Generate invoice
+          </button>
+        }
+      />
 
       <div className="stats-grid">
         <StatCard label="Fee templates" value={String(feeTemplates.length)} meta="Policy-backed billing templates that can later drive programme or level billing." />
@@ -89,7 +150,16 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
       {view === 'templates' ? (
         <div className="triple-grid">
           {feeTemplates.map((template) => (
-            <SectionCard key={template.id} title={template.name} subtitle={`${template.items.length} fee lines`}>
+            <SectionCard
+              key={template.id}
+              title={template.name}
+              subtitle={`${template.items.length} fee lines`}
+              aside={
+                <button type="button" className="ghost-button" onClick={() => openCreateInvoice(template.id)}>
+                  Use template
+                </button>
+              }
+            >
               <div className="list-stack">
                 {template.items.map((item) => (
                   <div key={item.id} className="list-row">
@@ -121,7 +191,7 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
             </select>
           }
         >
-          <DataTable data={invoices} columns={columns} />
+          <DataTable data={invoices} columns={columns} exportFilename="invoices" />
         </SectionCard>
       ) : null}
 
@@ -137,8 +207,70 @@ export function FinancePage({ view = 'templates' }: FinancePageProps) {
             </select>
           }
         >
-          <DataTable data={payments} columns={paymentColumns} />
+          <DataTable data={payments} columns={paymentColumns} exportFilename="payments" />
         </SectionCard>
+      ) : null}
+
+      {showCreateInvoiceModal ? (
+        <Modal
+          title="Generate invoice"
+          description="This simulates bursary invoice creation against a student or applicant record."
+          onClose={() => setShowCreateInvoiceModal(false)}
+          footer={
+            <>
+              <button type="button" className="ghost-button" onClick={() => setShowCreateInvoiceModal(false)}>
+                Cancel
+              </button>
+              <button type="button" className="primary-button" onClick={handleCreateInvoice}>
+                Create invoice
+              </button>
+            </>
+          }
+        >
+          <div className="form-grid">
+            <label className="field-group">
+              <span>Owner type</span>
+              <select
+                value={invoiceDraft.ownerType}
+                onChange={(event) =>
+                  setInvoiceDraft((current) => ({
+                    ...current,
+                    ownerType: event.target.value as 'student' | 'applicant',
+                    ownerId: event.target.value === 'student' ? studentOptions[0]?.id ?? '' : applicantOptions[0]?.id ?? '',
+                  }))
+                }
+              >
+                <option value="student">Student</option>
+                <option value="applicant">Applicant</option>
+              </select>
+            </label>
+            <label className="field-group">
+              <span>Owner</span>
+              <select value={invoiceDraft.ownerId} onChange={(event) => setInvoiceDraft((current) => ({ ...current, ownerId: event.target.value }))}>
+                {ownerOptions.map((owner) => (
+                  <option key={owner.id} value={owner.id}>
+                    {'matricNumber' in owner ? `${owner.fullName} (${owner.matricNumber})` : `${owner.fullName} (${owner.applicationNumber})`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field-group">
+              <span>Fee template</span>
+              <select value={invoiceDraft.feeTemplateId} onChange={(event) => setInvoiceDraft((current) => ({ ...current, feeTemplateId: event.target.value }))}>
+                {feeTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field-group">
+              <span>Due date</span>
+              <input type="date" value={invoiceDraft.dueDate} onChange={(event) => setInvoiceDraft((current) => ({ ...current, dueDate: event.target.value }))} />
+            </label>
+          </div>
+          {formError ? <div className="note-callout note-callout--danger">{formError}</div> : null}
+        </Modal>
       ) : null}
     </div>
   );

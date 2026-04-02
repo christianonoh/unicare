@@ -1,124 +1,303 @@
-import { universitySeed } from '../seeds/university';
+import { useDemoDataStore } from '../../app/store/demoDataStore';
 import type { DashboardSummary } from '../../types/domain';
 
-const facultyMap = new Map(universitySeed.faculties.map((item) => [item.id, item]));
-const departmentMap = new Map(universitySeed.departments.map((item) => [item.id, item]));
-const programmeMap = new Map(universitySeed.programmes.map((item) => [item.id, item]));
-const userMap = new Map(universitySeed.users.map((item) => [item.id, item]));
-const courseMap = new Map(universitySeed.courses.map((item) => [item.id, item]));
-const roleMap = new Map(universitySeed.roles.map((item) => [item.id, item]));
+function getData() {
+  return useDemoDataStore.getState().data;
+}
+
+function facultyMap() {
+  return new Map(getData().faculties.map((item) => [item.id, item]));
+}
+
+function departmentMap() {
+  return new Map(getData().departments.map((item) => [item.id, item]));
+}
+
+function programmeMap() {
+  return new Map(getData().programmes.map((item) => [item.id, item]));
+}
+
+function userMap() {
+  return new Map(getData().users.map((item) => [item.id, item]));
+}
+
+function courseMap() {
+  return new Map(getData().courses.map((item) => [item.id, item]));
+}
+
+function programmeCourseMap() {
+  return getData().programmeCourses;
+}
+
+function roleMap() {
+  return new Map(getData().roles.map((item) => [item.id, item]));
+}
 
 function facultyName(facultyId: string) {
-  return facultyMap.get(facultyId)?.name ?? 'Unknown Faculty';
+  return facultyMap().get(facultyId)?.name ?? 'Unknown Faculty';
 }
 
 function departmentName(departmentId: string) {
-  return departmentMap.get(departmentId)?.name ?? 'Unknown Department';
+  return departmentMap().get(departmentId)?.name ?? 'Unknown Department';
 }
 
 function programmeName(programmeId: string) {
-  return programmeMap.get(programmeId)?.name ?? 'Unknown Programme';
+  return programmeMap().get(programmeId)?.name ?? 'Unknown Programme';
+}
+
+function departmentForProgramme(programmeId: string) {
+  const programme = programmeMap().get(programmeId);
+  return programme ? departmentMap().get(programme.departmentId) : undefined;
+}
+
+function facultyForProgramme(programmeId: string) {
+  const department = departmentForProgramme(programmeId);
+  return department ? facultyMap().get(department.facultyId) : undefined;
+}
+
+function facultyNameForProgramme(programmeId: string) {
+  return facultyForProgramme(programmeId)?.name ?? 'Unknown Faculty';
 }
 
 export function getReferenceData() {
-  return universitySeed;
+  return getData();
+}
+
+export function listFacultyHierarchy() {
+  const data = getData();
+  const facultyLookup = facultyMap();
+
+  return data.faculties.map((faculty) => {
+    const childDepartments = data.departments.filter((department) => department.facultyId === faculty.id);
+    const childProgrammes = data.programmes.filter((programme) =>
+      childDepartments.some((department) => department.id === programme.departmentId),
+    );
+
+    return {
+      ...faculty,
+      breadcrumb: faculty.name,
+      departmentCount: childDepartments.length,
+      programmeCount: childProgrammes.length,
+      departments: childDepartments.map((department) => ({
+        ...department,
+        facultyName: facultyLookup.get(department.facultyId)?.name ?? 'Unknown Faculty',
+        programmeCount: data.programmes.filter((programme) => programme.departmentId === department.id).length,
+      })),
+    };
+  });
+}
+
+export function listDepartmentHierarchy() {
+  const data = getData();
+
+  return data.departments.map((department) => {
+    const faculty = facultyMap().get(department.facultyId);
+    const childProgrammes = data.programmes.filter((programme) => programme.departmentId === department.id);
+
+    return {
+      ...department,
+      facultyName: faculty?.name ?? 'Unknown Faculty',
+      breadcrumb: `${faculty?.name ?? 'Unknown Faculty'} > ${department.name}`,
+      programmes: childProgrammes,
+      programmeCount: childProgrammes.length,
+    };
+  });
+}
+
+export function listProgrammeHierarchy() {
+  const data = getData();
+  const attachments = programmeCourseMap();
+
+  return data.programmes.map((programme) => {
+    const department = departmentMap().get(programme.departmentId);
+    const faculty = department ? facultyMap().get(department.facultyId) : undefined;
+
+    return {
+      ...programme,
+      facultyName: faculty?.name ?? 'Unknown Faculty',
+      departmentName: department?.name ?? 'Unknown Department',
+      breadcrumb: `${faculty?.name ?? 'Unknown Faculty'} > ${department?.name ?? 'Unknown Department'} > ${programme.award} ${programme.name}`,
+      courseCount: attachments.filter((attachment) => attachment.programmeId === programme.id).length,
+    };
+  });
+}
+
+export function listSessionHierarchy() {
+  const data = getData();
+
+  return data.academicSessions.map((session) => {
+    const childSemesters = data.semesters.filter((semester) => semester.sessionId === session.id);
+
+    return {
+      ...session,
+      semesterCount: childSemesters.length,
+      semesters: childSemesters.map((semester) => ({
+        ...semester,
+        breadcrumb: `${session.name} > ${semester.name}`,
+      })),
+    };
+  });
+}
+
+export function listCourseCatalog() {
+  const data = getData();
+  const departmentLookup = departmentMap();
+  const facultyLookup = facultyMap();
+  const programmeLookup = programmeMap();
+  const sessionLookup = new Map(data.academicSessions.map((session) => [session.id, session]));
+  const semesterLookup = new Map(data.semesters.map((semester) => [semester.id, semester]));
+  const levelLookup = new Map(data.levels.map((level) => [level.id, level]));
+  const userLookup = userMap();
+
+  return data.courses.map((course) => {
+    const department = departmentLookup.get(course.departmentId);
+    const faculty = department ? facultyLookup.get(department.facultyId) : undefined;
+    const semester = semesterLookup.get(course.semesterId);
+    const session = semester ? sessionLookup.get(semester.sessionId) : undefined;
+    const level = levelLookup.get(course.levelId);
+    const attachments = data.programmeCourses.filter((attachment) => attachment.courseId === course.id);
+    const attachedProgrammes = attachments
+      .map((attachment) => programmeLookup.get(attachment.programmeId))
+      .filter(Boolean)
+      .map((programme) => ({
+        id: programme!.id,
+        name: programme!.name,
+        award: programme!.award,
+      }));
+
+    return {
+      ...course,
+      facultyName: faculty?.name ?? 'Unknown Faculty',
+      departmentName: department?.name ?? 'Unknown Department',
+      semesterName: semester?.name ?? 'Unknown Semester',
+      sessionName: session?.name ?? 'Unknown Session',
+      levelName: level?.name ?? 'Unknown Level',
+      lecturerName: course.lecturerId ? userLookup.get(course.lecturerId)?.name ?? 'Unassigned' : 'Unassigned',
+      attachedProgrammes,
+      attachedProgrammeNames: attachedProgrammes.map((programme) => `${programme.award} ${programme.name}`),
+      breadcrumb: `${faculty?.name ?? 'Unknown Faculty'} > ${department?.name ?? 'Unknown Department'} > ${course.code}`,
+    };
+  });
 }
 
 export function getDashboardSummary(): DashboardSummary {
+  const data = getData();
+
   return {
-    totalStudents: universitySeed.students.length,
-    activeApplicants: universitySeed.applicants.filter((item) => item.admissionStatus !== 'declined').length,
-    clearancePending: universitySeed.students.filter((item) => item.clearanceStatus === 'pending' || item.clearanceStatus === 'held').length,
-    outstandingRevenue: universitySeed.invoices.reduce((sum, invoice) => sum + (invoice.totalAmount - invoice.amountPaid), 0),
-    registrationApproved: universitySeed.registrations.filter((item) => item.status === 'approved').length,
-    resultsAwaitingApproval: universitySeed.results.filter((item) => item.status === 'pending' || item.status === 'not_submitted').length,
+    totalStudents: data.students.length,
+    activeApplicants: data.applicants.filter((item) => item.admissionStatus !== 'declined').length,
+    clearancePending: data.students.filter((item) => item.clearanceStatus === 'pending' || item.clearanceStatus === 'held').length,
+    outstandingRevenue: data.invoices.reduce((sum, invoice) => sum + (invoice.totalAmount - invoice.amountPaid), 0),
+    registrationApproved: data.registrations.filter((item) => item.status === 'approved').length,
+    resultsAwaitingApproval: data.results.filter((item) => item.status === 'pending' || item.status === 'not_submitted').length,
+    totalBeds: data.hostelRooms.reduce((sum, room) => sum + room.capacity, 0),
+    occupiedBeds: data.roomAssignments.filter((a) => a.status === 'occupied' || a.status === 'assigned').length,
   };
 }
 
 export function getRevenueTrend() {
+  const invoices = listInvoices();
+  const paid = invoices.filter((invoice) => invoice.status === 'paid').length;
+  const partPaid = invoices.filter((invoice) => invoice.status === 'part_paid').length;
+  const overdue = invoices.filter((invoice) => invoice.status === 'overdue').length;
+
   return [
     { month: 'Jan', invoiced: 18400000, collected: 12100000 },
     { month: 'Feb', invoiced: 25600000, collected: 16800000 },
-    { month: 'Mar', invoiced: 29400000, collected: 22100000 },
-    { month: 'Apr', invoiced: 18700000, collected: 14900000 },
-    { month: 'May', invoiced: 14800000, collected: 10600000 },
+    { month: 'Mar', invoiced: 29400000 + paid * 80000, collected: 22100000 + partPaid * 40000 },
+    { month: 'Apr', invoiced: 18700000 + overdue * 20000, collected: 14900000 + paid * 15000 },
+    { month: 'May', invoiced: 14800000, collected: 10600000 + partPaid * 12000 },
   ];
 }
 
 export function getRegistrationBreakdown() {
+  const data = getData();
+
   return [
-    { name: 'Approved', value: universitySeed.registrations.filter((item) => item.status === 'approved').length },
-    { name: 'Pending', value: universitySeed.registrations.filter((item) => item.status === 'pending').length },
-    { name: 'Held', value: universitySeed.registrations.filter((item) => item.status === 'held').length },
-    { name: 'Rejected', value: universitySeed.registrations.filter((item) => item.status === 'rejected').length },
+    { name: 'Approved', value: data.registrations.filter((item) => item.status === 'approved').length },
+    { name: 'Pending', value: data.registrations.filter((item) => item.status === 'pending').length },
+    { name: 'Held', value: data.registrations.filter((item) => item.status === 'held').length },
+    { name: 'Rejected', value: data.registrations.filter((item) => item.status === 'rejected').length },
   ];
 }
 
 export function listApplicants() {
-  return universitySeed.applicants.map((applicant) => ({
+  const users = userMap();
+
+  return getData().applicants.map((applicant) => ({
     ...applicant,
-    facultyName: facultyName(applicant.facultyId),
+    facultyName: facultyNameForProgramme(applicant.programmeId),
     departmentName: departmentName(applicant.departmentId),
     programmeName: programmeName(applicant.programmeId),
-    officerName: userMap.get(applicant.assignedOfficerId)?.name ?? 'Registry',
+    officerName: users.get(applicant.assignedOfficerId)?.name ?? 'Registry',
   }));
 }
 
 export function getApplicantById(applicantId: string) {
-  const applicant = universitySeed.applicants.find((item) => item.id === applicantId);
+  const data = getData();
+  const applicant = data.applicants.find((item) => item.id === applicantId);
 
   if (!applicant) {
     return null;
   }
 
-  const invoice = universitySeed.invoices.find((item) => item.applicantId === applicantId);
+  const invoice = data.invoices.find((item) => item.applicantId === applicantId);
+  const linkedStudent = data.students.find((student) => student.email === applicant.email);
 
   return {
     applicant,
-    faculty: facultyMap.get(applicant.facultyId),
-    department: departmentMap.get(applicant.departmentId),
-    programme: programmeMap.get(applicant.programmeId),
-    officer: userMap.get(applicant.assignedOfficerId),
+    faculty: facultyForProgramme(applicant.programmeId),
+    department: departmentMap().get(applicant.departmentId),
+    programme: programmeMap().get(applicant.programmeId),
+    officer: userMap().get(applicant.assignedOfficerId),
     invoice,
+    linkedStudent,
   };
 }
 
 export function listStudents() {
-  return universitySeed.students.map((student) => ({
+  return getData().students.map((student) => ({
     ...student,
-    facultyName: facultyName(student.facultyId),
+    facultyName: facultyNameForProgramme(student.programmeId),
     departmentName: departmentName(student.departmentId),
     programmeName: programmeName(student.programmeId),
-    adviserName: userMap.get(student.adviserId)?.name ?? 'Adviser not assigned',
+    adviserName: userMap().get(student.adviserId)?.name ?? 'Adviser not assigned',
   }));
 }
 
 export function getStudentProfile(studentId: string) {
-  const student = universitySeed.students.find((item) => item.id === studentId);
+  const data = getData();
+  const student = data.students.find((item) => item.id === studentId);
 
   if (!student) {
     return null;
   }
 
-  const invoices = universitySeed.invoices.filter((item) => item.studentId === studentId);
-  const registration = universitySeed.registrations.find((item) => item.studentId === studentId);
-  const resultEntries = universitySeed.results.filter((item) => item.studentId === studentId);
+  const invoices = data.invoices.filter((item) => item.studentId === studentId);
+  const registration = data.registrations.find((item) => item.studentId === studentId);
+  const resultEntries = data.results.filter((item) => item.studentId === studentId);
 
-  const unitsAttempted = resultEntries.length;
-  const gradePoints = resultEntries.reduce((sum, entry) => sum + entry.gradePoint, 0);
-  const gpa = unitsAttempted ? gradePoints / unitsAttempted : 0;
+  const cMap = courseMap();
+  const totalWeightedPoints = resultEntries.reduce((sum, entry) => {
+    const units = cMap.get(entry.courseId)?.units ?? 0;
+    return sum + entry.gradePoint * units;
+  }, 0);
+  const totalUnitsAttempted = resultEntries.reduce((sum, entry) => {
+    return sum + (cMap.get(entry.courseId)?.units ?? 0);
+  }, 0);
+  const gpa = totalUnitsAttempted ? totalWeightedPoints / totalUnitsAttempted : 0;
 
   return {
     student,
-    faculty: facultyMap.get(student.facultyId),
-    department: departmentMap.get(student.departmentId),
-    programme: programmeMap.get(student.programmeId),
-    adviser: userMap.get(student.adviserId),
+    faculty: facultyForProgramme(student.programmeId),
+    department: departmentMap().get(student.departmentId),
+    programme: programmeMap().get(student.programmeId),
+    adviser: userMap().get(student.adviserId),
     invoices,
     registration,
     results: resultEntries.map((entry) => ({
       ...entry,
-      course: courseMap.get(entry.courseId),
+      course: courseMap().get(entry.courseId),
     })),
     financialPosition: {
       totalBilled: invoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0),
@@ -130,9 +309,11 @@ export function getStudentProfile(studentId: string) {
 }
 
 export function listInvoices() {
-  return universitySeed.invoices.map((invoice) => {
-    const student = invoice.studentId ? universitySeed.students.find((item) => item.id === invoice.studentId) : undefined;
-    const applicant = invoice.applicantId ? universitySeed.applicants.find((item) => item.id === invoice.applicantId) : undefined;
+  const data = getData();
+
+  return data.invoices.map((invoice) => {
+    const student = invoice.studentId ? data.students.find((item) => item.id === invoice.studentId) : undefined;
+    const applicant = invoice.applicantId ? data.applicants.find((item) => item.id === invoice.applicantId) : undefined;
 
     return {
       ...invoice,
@@ -146,7 +327,7 @@ export function listInvoices() {
 export function listPayments() {
   const invoiceLookup = new Map(listInvoices().map((invoice) => [invoice.id, invoice]));
 
-  return universitySeed.payments.map((payment) => {
+  return getData().payments.map((payment) => {
     const invoice = invoiceLookup.get(payment.invoiceId);
 
     return {
@@ -160,32 +341,35 @@ export function listPayments() {
 }
 
 export function getInvoiceById(invoiceId: string) {
-  const invoice = universitySeed.invoices.find((item) => item.id === invoiceId);
+  const data = getData();
+  const invoice = data.invoices.find((item) => item.id === invoiceId);
 
   if (!invoice) {
     return null;
   }
 
-  const feeTemplate = universitySeed.feeTemplates.find((item) => item.id === invoice.feeTemplateId);
-  const student = invoice.studentId ? universitySeed.students.find((item) => item.id === invoice.studentId) : undefined;
-  const applicant = invoice.applicantId ? universitySeed.applicants.find((item) => item.id === invoice.applicantId) : undefined;
+  const feeTemplate = data.feeTemplates.find((item) => item.id === invoice.feeTemplateId);
+  const student = invoice.studentId ? data.students.find((item) => item.id === invoice.studentId) : undefined;
+  const applicant = invoice.applicantId ? data.applicants.find((item) => item.id === invoice.applicantId) : undefined;
 
   return {
     invoice,
     feeTemplate,
     ownerName: student?.fullName ?? applicant?.fullName ?? 'Unknown Owner',
-    payments: universitySeed.payments.filter((item) => item.invoiceId === invoice.id),
+    payments: data.payments.filter((item) => item.invoiceId === invoice.id),
     student,
     applicant,
   };
 }
 
 export function listRegistrations() {
-  return universitySeed.registrations.map((registration) => {
-    const student = universitySeed.students.find((item) => item.id === registration.studentId)!;
-    const registrationCourses = universitySeed.registrationItems
+  const data = getData();
+
+  return data.registrations.map((registration) => {
+    const student = data.students.find((item) => item.id === registration.studentId)!;
+    const registrationCourses = data.registrationItems
       .filter((item) => item.registrationId === registration.id)
-      .map((item) => courseMap.get(item.courseId)?.code)
+      .map((item) => courseMap().get(item.courseId)?.code)
       .filter(Boolean)
       .join(', ');
 
@@ -193,7 +377,7 @@ export function listRegistrations() {
       ...registration,
       studentName: student.fullName,
       matricNumber: student.matricNumber,
-      facultyName: facultyName(student.facultyId),
+      facultyName: facultyNameForProgramme(student.programmeId),
       departmentName: departmentName(student.departmentId),
       programmeName: programmeName(student.programmeId),
       courseCodes: registrationCourses,
@@ -201,8 +385,9 @@ export function listRegistrations() {
   });
 }
 
-export function getRegistrationByStudentAndSemester(studentId: string, semesterId = universitySeed.currentSemesterId) {
-  const registration = universitySeed.registrations.find((item) => item.studentId === studentId && item.semesterId === semesterId);
+export function getRegistrationByStudentAndSemester(studentId: string, semesterId = getData().currentSemesterId) {
+  const data = getData();
+  const registration = data.registrations.find((item) => item.studentId === studentId && item.semesterId === semesterId);
 
   if (!registration) {
     return null;
@@ -210,19 +395,21 @@ export function getRegistrationByStudentAndSemester(studentId: string, semesterI
 
   return {
     registration,
-    items: universitySeed.registrationItems
+    items: data.registrationItems
       .filter((item) => item.registrationId === registration.id)
       .map((item) => ({
         ...item,
-        course: courseMap.get(item.courseId),
+        course: courseMap().get(item.courseId),
       })),
   };
 }
 
 export function listResultSummaries() {
-  return universitySeed.registrations.map((registration) => {
-    const student = universitySeed.students.find((item) => item.id === registration.studentId)!;
-    const entries = universitySeed.results.filter((item) => item.registrationId === registration.id);
+  const data = getData();
+
+  return data.registrations.map((registration) => {
+    const student = data.students.find((item) => item.id === registration.studentId)!;
+    const entries = data.results.filter((item) => item.registrationId === registration.id);
     const approvedEntries = entries.filter((item) => item.status === 'approved' || item.status === 'published');
     const average = approvedEntries.length
       ? approvedEntries.reduce((sum, item) => sum + item.totalScore, 0) / approvedEntries.length
@@ -249,10 +436,12 @@ export function listResultSummaries() {
 }
 
 export function getDepartmentResultSummary() {
-  return universitySeed.departments.map((department) => {
-    const departmentStudents = universitySeed.students.filter((item) => item.departmentId === department.id);
-    const departmentResults = universitySeed.results.filter((item) => {
-      const student = universitySeed.students.find((entry) => entry.id === item.studentId);
+  const data = getData();
+
+  return data.departments.map((department) => {
+    const departmentStudents = data.students.filter((item) => item.departmentId === department.id);
+    const departmentResults = data.results.filter((item) => {
+      const student = data.students.find((entry) => entry.id === item.studentId);
       return student?.departmentId === department.id;
     });
 
@@ -268,9 +457,9 @@ export function getDepartmentResultSummary() {
 }
 
 export function listUsers() {
-  return universitySeed.users.map((user) => ({
+  return getData().users.map((user) => ({
     ...user,
-    roleName: roleMap.get(user.roleId)?.name ?? 'Unknown Role',
+    roleName: roleMap().get(user.roleId)?.name ?? 'Unknown Role',
     facultyName: user.facultyId ? facultyName(user.facultyId) : 'University-wide',
     departmentName: user.departmentId ? departmentName(user.departmentId) : 'Central Administration',
   }));
@@ -287,9 +476,98 @@ export function getSettingsBlueprint() {
 }
 
 export function getCurrentActors() {
+  const data = getData();
+
   return {
-    users: universitySeed.users,
-    sessions: universitySeed.academicSessions,
-    semesters: universitySeed.semesters,
+    users: data.users,
+    sessions: data.academicSessions,
+    semesters: data.semesters,
   };
+}
+
+// ── Hostel & Accommodation ──────────────────────────────────────────
+
+export function listHostelBlocks() {
+  const data = getData();
+
+  return data.hostelBlocks.map((block) => {
+    const activeAssignments = data.roomAssignments.filter(
+      (a) => a.blockId === block.id && (a.status === 'occupied' || a.status === 'assigned'),
+    );
+    const occupiedBeds = activeAssignments.length;
+
+    return {
+      ...block,
+      occupiedBeds,
+      vacantBeds: block.totalBeds - occupiedBeds,
+      occupancyRate: block.totalBeds ? Math.round((occupiedBeds / block.totalBeds) * 100) : 0,
+    };
+  });
+}
+
+export function getHostelBlockDetail(blockId: string) {
+  const data = getData();
+  const block = data.hostelBlocks.find((item) => item.id === blockId);
+  if (!block) return null;
+
+  const sMap = new Map(data.students.map((s) => [s.id, s]));
+  const rooms = data.hostelRooms.filter((room) => room.blockId === blockId);
+
+  return {
+    block,
+    rooms: rooms.map((room) => {
+      const assignments = data.roomAssignments
+        .filter((a) => a.roomId === room.id && a.status !== 'vacated')
+        .map((a) => {
+          const student = sMap.get(a.studentId);
+          return {
+            ...a,
+            studentName: student?.fullName ?? 'Unknown',
+            matricNumber: student?.matricNumber ?? '',
+          };
+        });
+      return { ...room, assignments, occupancy: assignments.length };
+    }),
+  };
+}
+
+export function listRoomAssignments() {
+  const data = getData();
+  const sMap = new Map(data.students.map((s) => [s.id, s]));
+  const rMap = new Map(data.hostelRooms.map((r) => [r.id, r]));
+  const bMap = new Map(data.hostelBlocks.map((b) => [b.id, b]));
+
+  return data.roomAssignments.map((assignment) => {
+    const room = rMap.get(assignment.roomId);
+    const block = room ? bMap.get(room.blockId) : undefined;
+    const student = sMap.get(assignment.studentId);
+    return {
+      ...assignment,
+      studentName: student?.fullName ?? 'Unknown',
+      matricNumber: student?.matricNumber ?? '',
+      roomNumber: room?.roomNumber ?? '',
+      blockName: block?.name ?? '',
+    };
+  });
+}
+
+export function listVacantRooms() {
+  const data = getData();
+  const bMap = new Map(data.hostelBlocks.map((b) => [b.id, b]));
+
+  return data.hostelRooms
+    .map((room) => {
+      const block = bMap.get(room.blockId);
+      const occupancy = data.roomAssignments.filter(
+        (a) => a.roomId === room.id && (a.status === 'occupied' || a.status === 'assigned'),
+      ).length;
+      return {
+        ...room,
+        blockName: block?.name ?? '',
+        blockType: block?.type ?? ('male' as const),
+        occupancy,
+        vacantBeds: room.capacity - occupancy,
+      };
+    })
+    .filter((room) => room.vacantBeds > 0);
 }

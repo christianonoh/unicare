@@ -3,11 +3,16 @@ export type ClearanceStatus = 'pending' | 'cleared' | 'held' | 'queried';
 export type StudentStatus = 'active' | 'inactive' | 'probation' | 'deferred' | 'graduated';
 export type InvoiceStatus = 'paid' | 'part_paid' | 'unpaid' | 'overdue' | 'waived';
 export type PaymentStatus = 'successful' | 'pending' | 'failed' | 'reconciled';
+export type PaymentChannel = 'Paystack' | 'Bank Transfer' | 'Remita' | 'POS';
 export type RegistrationStatus = 'draft' | 'pending' | 'approved' | 'held' | 'rejected';
 export type ResultApprovalStatus = 'not_submitted' | 'pending' | 'approved' | 'published';
 export type CourseType = 'core' | 'elective' | 'gst';
 export type EntryMode = 'UTME' | 'Direct Entry' | 'Transfer';
 export type Gender = 'Male' | 'Female';
+export type DocumentStatus = 'received' | 'missing' | 'flagged';
+export type HostelType = 'male' | 'female';
+export type RoomType = 'double' | 'triple' | 'quad';
+export type AssignmentStatus = 'assigned' | 'occupied' | 'vacated';
 
 export interface Faculty {
   id: string;
@@ -27,7 +32,6 @@ export interface Department {
 export interface Programme {
   id: string;
   departmentId: string;
-  facultyId: string;
   name: string;
   award: string;
   durationYears: number;
@@ -74,9 +78,7 @@ export interface Course {
   id: string;
   code: string;
   title: string;
-  facultyId: string;
   departmentId: string;
-  programmeId: string;
   levelId: string;
   semesterId: string;
   units: number;
@@ -85,9 +87,15 @@ export interface Course {
   lecturerId?: string;
 }
 
+export interface ProgrammeCourse {
+  id: string;
+  programmeId: string;
+  courseId: string;
+}
+
 export interface DocumentRecord {
   name: string;
-  status: 'received' | 'missing' | 'flagged';
+  status: DocumentStatus;
 }
 
 export interface Applicant {
@@ -174,7 +182,7 @@ export interface Payment {
   id: string;
   invoiceId: string;
   amount: number;
-  channel: 'Paystack' | 'Bank Transfer' | 'Remita' | 'POS';
+  channel: PaymentChannel;
   status: PaymentStatus;
   paidAt: string;
   reference: string;
@@ -218,6 +226,37 @@ export interface ResultEntry {
   carryover: boolean;
 }
 
+export interface HostelBlock {
+  id: string;
+  name: string;
+  type: HostelType;
+  location: string;
+  totalRooms: number;
+  totalBeds: number;
+  porterName: string;
+}
+
+export interface HostelRoom {
+  id: string;
+  blockId: string;
+  roomNumber: string;
+  type: RoomType;
+  floor: number;
+  capacity: number;
+}
+
+export interface RoomAssignment {
+  id: string;
+  roomId: string;
+  blockId: string;
+  studentId: string;
+  sessionId: string;
+  assignedDate: string;
+  status: AssignmentStatus;
+  checkInDate?: string;
+  checkOutDate?: string;
+}
+
 export interface DashboardSummary {
   totalStudents: number;
   activeApplicants: number;
@@ -225,4 +264,32 @@ export interface DashboardSummary {
   outstandingRevenue: number;
   registrationApproved: number;
   resultsAwaitingApproval: number;
+  totalBeds: number;
+  occupiedBeds: number;
+}
+
+export interface UniversityDataset {
+  faculties: Faculty[];
+  departments: Department[];
+  programmes: Programme[];
+  academicSessions: AcademicSession[];
+  semesters: Semester[];
+  levels: Level[];
+  roles: Role[];
+  users: User[];
+  courses: Course[];
+  programmeCourses: ProgrammeCourse[];
+  applicants: Applicant[];
+  students: Student[];
+  feeTemplates: FeeTemplate[];
+  invoices: Invoice[];
+  payments: Payment[];
+  registrations: CourseRegistration[];
+  registrationItems: RegistrationItem[];
+  results: ResultEntry[];
+  hostelBlocks: HostelBlock[];
+  hostelRooms: HostelRoom[];
+  roomAssignments: RoomAssignment[];
+  currentSessionId: string;
+  currentSemesterId: string;
 }

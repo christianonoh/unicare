@@ -1,3 +1,4 @@
+import { useDemoRevision } from '../../app/store/demoDataStore';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatCard } from '../../components/StatCard';
@@ -11,6 +12,7 @@ interface ReportsPageProps {
 }
 
 export function ReportsPage({ view = 'admissions' }: ReportsPageProps) {
+  useDemoRevision();
   const applicants = listApplicants();
   const students = listStudents();
   const invoices = listInvoices();

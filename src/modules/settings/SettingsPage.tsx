@@ -1,3 +1,4 @@
+import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { getSettingsBlueprint } from '../../data/services/universityData';
@@ -9,6 +10,8 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ view = 'institution' }: SettingsPageProps) {
+  useDemoRevision();
+  const resetDemoData = useDemoDataStore((state) => state.resetDemoData);
   const settings = getSettingsBlueprint();
   const content: Record<SettingsView, { title: string; description: string }> = {
     institution: {
@@ -43,6 +46,19 @@ export function SettingsPage({ view = 'institution' }: SettingsPageProps) {
                   {module}
                 </span>
               ))}
+            </div>
+            <div className="inline-actions">
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => {
+                  if (window.confirm('Reset the demo data back to the original seed state?')) {
+                    resetDemoData();
+                  }
+                }}
+              >
+                Reset demo data
+              </button>
             </div>
           </SectionCard>
         </div>

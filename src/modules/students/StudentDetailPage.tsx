@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useDemoRevision } from '../../app/store/demoDataStore';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -8,6 +9,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { statusTone } from '../../lib/status';
 
 export function StudentDetailPage() {
+  useDemoRevision();
   const { studentId = '' } = useParams();
   const detail = getStudentProfile(studentId);
   const [tab, setTab] = useState<'profile' | 'finance' | 'registration' | 'results'>('profile');
@@ -40,7 +42,7 @@ export function StudentDetailPage() {
             <strong>{adviser?.name ?? 'Not assigned'}</strong>
           </div>
           <div>
-            <span>Current GPA</span>
+            <span>CGPA</span>
             <strong>{gpa.toFixed(2)}</strong>
           </div>
         </div>

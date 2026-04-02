@@ -1,11 +1,13 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { useState } from 'react';
+import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
 import { DataTable } from '../../components/DataTable';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatusBadge } from '../../components/StatusBadge';
 import { getDepartmentResultSummary, getStudentProfile, listResultSummaries } from '../../data/services/universityData';
 import { statusTone } from '../../lib/status';
+import { toast } from '../../lib/toast';
 
 type ResultsView = 'score-entry' | 'approval' | 'departments';
 
@@ -14,7 +16,13 @@ interface ResultsPageProps {
 }
 
 export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
+  useDemoRevision();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCA, setEditCA] = useState(0);
+  const [editExam, setEditExam] = useState(0);
+  const updateResultEntry = useDemoDataStore((state) => state.updateResultEntry);
+  const approveResult = useDemoDataStore((state) => state.approveResult);
   const allSummaries = listResultSummaries();
   const summaries = allSummaries.filter((summary) => {
     if (view === 'approval') {
@@ -38,6 +46,24 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
       description: 'A management summary of result publication posture and carryover exposure by department.',
     },
   };
+
+  function startEdit(resultId: string, ca: number, exam: number) {
+    setEditingId(resultId);
+    setEditCA(ca);
+    setEditExam(exam);
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    const result = updateResultEntry(editingId, editCA, editExam);
+    result.ok ? toast.success(result.message) : toast.error(result.message);
+    if (result.ok) setEditingId(null);
+  }
+
+  function handleApprove(resultId: string) {
+    const result = approveResult(resultId);
+    result.ok ? toast.success(result.message) : toast.error(result.message);
+  }
 
   const columns = [
     createColumnHelper<(typeof summaries)[number]>().accessor('studentName', {
@@ -98,20 +124,51 @@ export function ResultsPage({ view = 'score-entry' }: ResultsPageProps) {
           >
             <DataTable data={summaries} columns={columns} />
           </SectionCard>
-          <SectionCard title="Selected score sheet" subtitle="Preview how the detailed result-entry or review experience can feel in later phases.">
+          <SectionCard title="Selected score sheet" subtitle={view === 'score-entry' ? 'Click Edit to modify CA and exam scores for each course.' : 'Approve or publish individual result entries.'}>
             {detail ? (
               <div className="list-stack">
-                {detail.results.slice(0, 8).map((result) => (
+                {detail.results.slice(0, 12).map((result) => (
                   <div key={result.id} className="list-row">
-                    <div>
-                      <strong>{result.course?.code}</strong>
-                      <p>{result.course?.title}</p>
-                    </div>
-                    <div className="row-meta">
-                      <span>{result.totalScore}</span>
-                      {result.carryover ? <StatusBadge tone="carryover" label="carryover" /> : null}
-                      <StatusBadge tone={statusTone(result.status)} label={result.status} />
-                    </div>
+                    {editingId === result.id ? (
+                      <>
+                        <div>
+                          <strong>{result.course?.code}</strong>
+                          <div className="score-edit-row">
+                            <label>
+                              CA
+                              <input type="number" min={0} max={40} value={editCA} onChange={(e) => setEditCA(Number(e.target.value))} style={{ width: 60 }} />
+                            </label>
+                            <label>
+                              Exam
+                              <input type="number" min={0} max={60} value={editExam} onChange={(e) => setEditExam(Number(e.target.value))} style={{ width: 60 }} />
+                            </label>
+                          </div>
+                        </div>
+                        <div className="row-meta">
+                          <button type="button" className="primary-button ghost-button--sm" onClick={saveEdit}>Save</button>
+                          <button type="button" className="ghost-button ghost-button--sm" onClick={() => setEditingId(null)}>Cancel</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <strong>{result.course?.code}</strong>
+                          <p>{result.course?.title}</p>
+                        </div>
+                        <div className="row-meta">
+                          <span title={`CA: ${result.caScore} | Exam: ${result.examScore}`}>{result.totalScore} ({result.grade})</span>
+                          {result.carryover ? <StatusBadge tone="carryover" label="carryover" /> : null}
+                          <StatusBadge tone={statusTone(result.status)} label={result.status} />
+                          {view === 'score-entry' ? (
+                            <button type="button" className="ghost-button ghost-button--sm" onClick={() => startEdit(result.id, result.caScore, result.examScore)}>Edit</button>
+                          ) : (
+                            <button type="button" className="ghost-button ghost-button--sm" onClick={() => handleApprove(result.id)}>
+                              {result.status === 'approved' ? 'Publish' : 'Approve'}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

@@ -1,11 +1,14 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { useState } from 'react';
+import { useDemoDataStore, useDemoRevision } from '../../app/store/demoDataStore';
 import { DataTable } from '../../components/DataTable';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatusBadge } from '../../components/StatusBadge';
-import { getRegistrationByStudentAndSemester, listRegistrations } from '../../data/services/universityData';
+import { getRegistrationByStudentAndSemester, listRegistrations, getReferenceData } from '../../data/services/universityData';
 import { statusTone } from '../../lib/status';
+import { toast } from '../../lib/toast';
+import type { RegistrationStatus } from '../../types/domain';
 
 type RegistrationView = 'queue' | 'approved' | 'held';
 
@@ -14,7 +17,12 @@ interface CourseRegistrationPageProps {
 }
 
 export function CourseRegistrationPage({ view = 'queue' }: CourseRegistrationPageProps) {
+  useDemoRevision();
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [addCourseId, setAddCourseId] = useState('');
+  const updateRegistrationReview = useDemoDataStore((state) => state.updateRegistrationReview);
+  const addCourseToRegistration = useDemoDataStore((state) => state.addCourseToRegistration);
+  const dropCourseFromRegistration = useDemoDataStore((state) => state.dropCourseFromRegistration);
   const allRegistrations = listRegistrations();
   const registrations = allRegistrations.filter((registration) => {
     if (view === 'approved') {
@@ -43,6 +51,29 @@ export function CourseRegistrationPage({ view = 'queue' }: CourseRegistrationPag
       sectionTitle: 'Held packs',
     },
   };
+
+  const { courses } = getReferenceData();
+  const registeredCourseIds = new Set(selectedRegistration?.items.map((item) => item.courseId) ?? []);
+  const availableCourses = courses.filter((course) => !registeredCourseIds.has(course.id));
+
+  function handleReview(field: 'adviserReview' | 'hodReview', status: RegistrationStatus) {
+    if (!selectedRegistration) return;
+    const result = updateRegistrationReview(selectedRegistration.registration.id, field, status);
+    result.ok ? toast.success(result.message) : toast.error(result.message);
+  }
+
+  function handleAddCourse() {
+    if (!selectedRegistration || !addCourseId) return;
+    const result = addCourseToRegistration(selectedRegistration.registration.id, addCourseId);
+    result.ok ? toast.success(result.message) : toast.error(result.message);
+    if (result.ok) setAddCourseId('');
+  }
+
+  function handleDropCourse(courseId: string) {
+    if (!selectedRegistration) return;
+    const result = dropCourseFromRegistration(selectedRegistration.registration.id, courseId);
+    result.ok ? toast.success(result.message) : toast.error(result.message);
+  }
 
   const columns = [
     createColumnHelper<(typeof registrations)[number]>().accessor('studentName', {
@@ -78,7 +109,7 @@ export function CourseRegistrationPage({ view = 'queue' }: CourseRegistrationPag
           <DataTable data={registrations} columns={columns} />
         </SectionCard>
 
-        <SectionCard title="Selected registration" subtitle="A believable right-side panel for demos and stakeholder walkthroughs.">
+        <SectionCard title="Selected registration" subtitle="Inspect, approve, or modify a student's course registration.">
           {selectedRegistration ? (
             <>
               <div className="info-grid">
@@ -87,6 +118,13 @@ export function CourseRegistrationPage({ view = 'queue' }: CourseRegistrationPag
                 <div><span>HOD</span><StatusBadge tone={statusTone(selectedRegistration.registration.hodReview)} label={selectedRegistration.registration.hodReview} /></div>
                 <div><span>Financial hold</span><StatusBadge tone={selectedRegistration.registration.hasFinancialHold ? 'held' : 'approved'} label={selectedRegistration.registration.hasFinancialHold ? 'held' : 'clear'} /></div>
               </div>
+
+              <div className="button-row" style={{ padding: '8px 0' }}>
+                <button type="button" className="ghost-button ghost-button--sm" onClick={() => handleReview('adviserReview', 'approved')}>Adviser approve</button>
+                <button type="button" className="ghost-button ghost-button--sm" onClick={() => handleReview('hodReview', 'approved')}>HOD approve</button>
+                <button type="button" className="ghost-button ghost-button--sm" onClick={() => handleReview('hodReview', 'rejected')}>HOD reject</button>
+              </div>
+
               <div className="list-stack">
                 {selectedRegistration.items.map((item) => (
                   <div key={item.id} className="list-row">
@@ -97,9 +135,26 @@ export function CourseRegistrationPage({ view = 'queue' }: CourseRegistrationPag
                     <div className="row-meta">
                       <span>{item.course?.units} units</span>
                       <StatusBadge tone={statusTone(item.status)} label={item.status} />
+                      <button type="button" className="ghost-button ghost-button--sm" onClick={() => handleDropCourse(item.courseId)}>Drop</button>
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="form-grid" style={{ marginTop: 8 }}>
+                <label className="field-group">
+                  <span>Add course</span>
+                  <select value={addCourseId} onChange={(e) => setAddCourseId(e.target.value)}>
+                    <option value="">Select a course...</option>
+                    {availableCourses.map((course) => (
+                      <option key={course.id} value={course.id}>{course.code} - {course.title} ({course.units}u)</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="field-group field-group--actions">
+                  <span>Action</span>
+                  <button type="button" className="primary-button" onClick={handleAddCourse} disabled={!addCourseId}>Add course</button>
+                </div>
               </div>
             </>
           ) : (

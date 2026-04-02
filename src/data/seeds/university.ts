@@ -6,13 +6,17 @@ import type {
   Department,
   Faculty,
   FeeTemplate,
+  HostelBlock,
+  HostelRoom,
   Invoice,
   Level,
   Payment,
   Programme,
+  ProgrammeCourse,
   RegistrationItem,
   ResultEntry,
   Role,
+  RoomAssignment,
   Semester,
   Student,
   User,
@@ -109,18 +113,18 @@ export const departments: Department[] = [
 ];
 
 export const programmes: Programme[] = [
-  { id: 'prog-csc', departmentId: 'dept-csc', facultyId: 'faculty-science', name: 'Computer Science', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-cys', departmentId: 'dept-csc', facultyId: 'faculty-science', name: 'Cyber Security', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-mcb', departmentId: 'dept-mcb', facultyId: 'faculty-science', name: 'Microbiology', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-mat', departmentId: 'dept-mat', facultyId: 'faculty-science', name: 'Applied Mathematics', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-eng', departmentId: 'dept-eng', facultyId: 'faculty-arts', name: 'English & Literary Studies', award: 'B.A', durationYears: 4 },
-  { id: 'prog-mcs', departmentId: 'dept-eng', facultyId: 'faculty-arts', name: 'Mass Communication Studies', award: 'B.A', durationYears: 4 },
-  { id: 'prog-his', departmentId: 'dept-his', facultyId: 'faculty-arts', name: 'History & Diplomatic Studies', award: 'B.A', durationYears: 4 },
-  { id: 'prog-acc', departmentId: 'dept-acc', facultyId: 'faculty-management', name: 'Accounting', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-act', departmentId: 'dept-acc', facultyId: 'faculty-management', name: 'Actuarial Accounting', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-fin', departmentId: 'dept-fin', facultyId: 'faculty-management', name: 'Banking & Finance', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-eco', departmentId: 'dept-eco', facultyId: 'faculty-management', name: 'Economics', award: 'B.Sc', durationYears: 4 },
-  { id: 'prog-bae', departmentId: 'dept-eco', facultyId: 'faculty-management', name: 'Business Analytics & Economics', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-csc', departmentId: 'dept-csc', name: 'Computer Science', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-cys', departmentId: 'dept-csc', name: 'Cyber Security', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-mcb', departmentId: 'dept-mcb', name: 'Microbiology', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-mat', departmentId: 'dept-mat', name: 'Applied Mathematics', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-eng', departmentId: 'dept-eng', name: 'English & Literary Studies', award: 'B.A', durationYears: 4 },
+  { id: 'prog-mcs', departmentId: 'dept-eng', name: 'Mass Communication Studies', award: 'B.A', durationYears: 4 },
+  { id: 'prog-his', departmentId: 'dept-his', name: 'History & Diplomatic Studies', award: 'B.A', durationYears: 4 },
+  { id: 'prog-acc', departmentId: 'dept-acc', name: 'Accounting', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-act', departmentId: 'dept-acc', name: 'Actuarial Accounting', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-fin', departmentId: 'dept-fin', name: 'Banking & Finance', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-eco', departmentId: 'dept-eco', name: 'Economics', award: 'B.Sc', durationYears: 4 },
+  { id: 'prog-bae', departmentId: 'dept-eco', name: 'Business Analytics & Economics', award: 'B.Sc', durationYears: 4 },
 ];
 
 export const academicSessions: AcademicSession[] = [
@@ -188,36 +192,80 @@ const semesterCourseTags = [
 const levelPools = ['level-100', 'level-200', 'level-300', 'level-400'];
 const currentSemesterId = 'semester-2025-2026-1';
 const currentSessionId = 'session-2025-2026';
+const activeSemesterIds = ['semester-2025-2026-1', 'semester-2025-2026-2'];
 
-export const courses: Course[] = programmes.flatMap((programme, programmeIndex) =>
+const departmentCourseThemes: Record<string, string[]> = {
+  'dept-csc': ['Programming', 'Algorithms', 'Networks', 'Data Systems', 'Software Practice', 'Security Lab'],
+  'dept-mcb': ['Cell Biology', 'Molecular Methods', 'Microbial Ecology', 'Applied Lab', 'Clinical Practice', 'Bioinformatics'],
+  'dept-mat': ['Calculus', 'Algebra', 'Modelling', 'Statistics', 'Numerical Methods', 'Operations Research'],
+  'dept-eng': ['Language Study', 'Critical Reading', 'Writing Lab', 'Drama Studies', 'Media Writing', 'Theory Seminar'],
+  'dept-his': ['Historical Method', 'Diplomatic Practice', 'Regional Studies', 'Archive Seminar', 'Policy Review', 'Global Affairs'],
+  'dept-acc': ['Financial Reporting', 'Audit Practice', 'Taxation', 'Corporate Analysis', 'Cost Control', 'Forensic Review'],
+  'dept-fin': ['Financial Markets', 'Risk Methods', 'Treasury Practice', 'Investment Lab', 'Banking Operations', 'Portfolio Theory'],
+  'dept-eco': ['Microeconomics', 'Macroeconomics', 'Policy Analysis', 'Econometrics', 'Development Studies', 'Business Intelligence'],
+};
+
+const departmentById = new Map(departments.map((department) => [department.id, department]));
+const programmesByDepartmentId = departments.reduce<Record<string, Programme[]>>((accumulator, department) => {
+  accumulator[department.id] = programmes.filter((programme) => programme.departmentId === department.id);
+  return accumulator;
+}, {});
+
+export const courses: Course[] = departments.flatMap((department, departmentIndex) =>
   levelPools.flatMap((levelId, levelIndex) => {
-    const department = departments.find((item) => item.id === programme.departmentId)!;
-    const lecturerPool = users.filter((user) => user.departmentId === programme.departmentId && user.roleId === 'role-lecturer');
-    const semesterId = levelIndex % 2 === 0 ? 'semester-2025-2026-1' : 'semester-2025-2026-2';
+    const lecturerPool = users.filter((user) => user.departmentId === department.id && user.roleId === 'role-lecturer');
 
-    return Array.from({ length: 2 }).map((_, courseIndex) => {
-      const serial = programmeIndex * 100 + levelIndex * 20 + courseIndex + 1;
-      const codeNumber = 110 + levelIndex * 100 + courseIndex * 5 + (programmeIndex % 4);
-      const lecturer = lecturerPool[(courseIndex + levelIndex) % lecturerPool.length];
-      const previousCourseCode = courseIndex === 0 || levelIndex === 0 ? [] : [`${department.code}${codeNumber - 100}`];
+    return activeSemesterIds.flatMap((semesterId, semesterIndex) =>
+      Array.from({ length: 2 }).map((_, courseIndex) => {
+        const serial = departmentIndex * 100 + levelIndex * 20 + semesterIndex * 10 + courseIndex + 1;
+        const codeNumber = 111 + levelIndex * 100 + semesterIndex * 20 + courseIndex * 5 + (departmentIndex % 3);
+        const lecturer = lecturerPool[(courseIndex + levelIndex + semesterIndex) % lecturerPool.length];
+        const themePool = departmentCourseThemes[department.id] ?? semesterCourseTags;
+        const theme = themePool[(serial + courseIndex) % themePool.length];
+        const previousCourseCode =
+          levelIndex === 0
+            ? []
+            : [`${department.code}${111 + (levelIndex - 1) * 100 + semesterIndex * 20 + (departmentIndex % 3)}`];
 
-      return {
-        id: `course-${programme.id}-${levelId}-${courseIndex + 1}`,
-        code: `${department.code}${codeNumber}`,
-        title: `${programme.name} ${semesterCourseTags[(serial + courseIndex) % semesterCourseTags.length]}`,
-        facultyId: programme.facultyId,
-        departmentId: programme.departmentId,
-        programmeId: programme.id,
-        levelId,
-        semesterId,
-        units: (courseIndex + levelIndex) % 2 === 0 ? 3 : 2,
-        type: levelIndex === 0 && courseIndex === 0 ? 'gst' : courseIndex === 1 && levelIndex > 1 ? 'elective' : 'core',
-        prerequisites: previousCourseCode,
-        lecturerId: serial % 17 === 0 ? undefined : lecturer?.id,
-      };
-    });
+        return {
+          id: `course-${department.id}-${levelId}-${semesterIndex + 1}-${courseIndex + 1}`,
+          code: `${department.code}${codeNumber}`,
+          title: `${department.name} ${theme}`,
+          departmentId: department.id,
+          levelId,
+          semesterId,
+          units: courseIndex === 0 ? 3 : 2,
+          type: levelIndex === 0 && courseIndex === 0 ? 'gst' : levelIndex > 1 && courseIndex === 1 ? 'elective' : 'core',
+          prerequisites: previousCourseCode,
+          lecturerId: serial % 17 === 0 ? undefined : lecturer?.id,
+        };
+      }),
+    );
   }),
 );
+
+export const programmeCourses: ProgrammeCourse[] = programmes.flatMap((programme) => {
+  const siblingProgrammes = programmesByDepartmentId[programme.departmentId] ?? [];
+  const siblingIndex = Math.max(
+    siblingProgrammes.findIndex((siblingProgramme) => siblingProgramme.id === programme.id),
+    0,
+  );
+
+  return courses
+    .filter((course) => course.departmentId === programme.departmentId)
+    .filter((course, courseIndex) => {
+      if (siblingProgrammes.length <= 1) {
+        return true;
+      }
+
+      return course.type === 'gst' || courseIndex % siblingProgrammes.length === siblingIndex || courseIndex % 5 === 0;
+    })
+    .map((course) => ({
+      id: `programme-course-${programme.id}-${course.id}`,
+      programmeId: programme.id,
+      courseId: course.id,
+    }));
+});
 
 function applicantDocuments(seed: number) {
   return [
@@ -230,7 +278,7 @@ function applicantDocuments(seed: number) {
 
 export const applicants: Applicant[] = Array.from({ length: 240 }).map((_, index) => {
   const programme = programmes[index % programmes.length];
-  const department = departments.find((item) => item.id === programme.departmentId)!;
+  const department = departmentById.get(programme.departmentId)!;
   const aggregateScore = 48 + (index % 42);
   const statusCycle = index % 8;
   const admissionStatus =
@@ -256,7 +304,7 @@ export const applicants: Applicant[] = Array.from({ length: 240 }).map((_, index
     email: makeEmail(index),
     phone: makePhone(index + 20),
     entryMode: index % 9 === 0 ? 'Direct Entry' : 'UTME',
-    facultyId: programme.facultyId,
+    facultyId: department.facultyId,
     departmentId: department.id,
     programmeId: programme.id,
     sessionId: currentSessionId,
@@ -293,7 +341,7 @@ function studentDocuments(seed: number) {
 
 export const students: Student[] = Array.from({ length: 720 }).map((_, index) => {
   const programme = programmes[index % programmes.length];
-  const department = departments.find((item) => item.id === programme.departmentId)!;
+  const department = departmentById.get(programme.departmentId)!;
   const levelIndex = index % programme.durationYears;
   const level = levels[levelIndex];
   const yearCode = 2022 + (index % 4);
@@ -312,7 +360,7 @@ export const students: Student[] = Array.from({ length: 720 }).map((_, index) =>
     stateOfOrigin: states[(index + 3) % states.length],
     entryMode: index % 10 === 0 ? 'Direct Entry' : 'UTME',
     sessionId: index % 2 === 0 ? 'session-2025-2026' : 'session-2024-2025',
-    facultyId: programme.facultyId,
+    facultyId: department.facultyId,
     departmentId: programme.departmentId,
     programmeId: programme.id,
     levelId: level.id,
@@ -442,10 +490,13 @@ export const payments: Payment[] = invoices.flatMap((invoice, index): Payment[] 
 });
 
 function registrationCourses(student: Student, semesterId: string) {
-  const programmeCourses = courses.filter(
-    (course) => course.programmeId === student.programmeId && course.levelId === student.levelId && course.semesterId === semesterId,
+  const attachedCourseIds = new Set(
+    programmeCourses.filter((attachment) => attachment.programmeId === student.programmeId).map((attachment) => attachment.courseId),
   );
-  return programmeCourses.slice(0, 2);
+
+  return courses
+    .filter((course) => attachedCourseIds.has(course.id) && course.levelId === student.levelId && course.semesterId === semesterId)
+    .slice(0, 3);
 }
 
 export const registrations: CourseRegistration[] = students
@@ -522,6 +573,81 @@ export const results: ResultEntry[] = registrationItems.map((item, index) => {
   };
 });
 
+// ── Hostel & Accommodation ──────────────────────────────────────────
+
+const blockDefs: Array<{ id: string; name: string; type: 'male' | 'female'; location: string; rooms: number; bedsPerRoom: 3 | 4; porter: string }> = [
+  { id: 'block-moremi', name: 'Moremi Hall', type: 'female', location: 'North Campus', rooms: 20, bedsPerRoom: 3, porter: 'Mrs. Ngozi Eze' },
+  { id: 'block-awo', name: 'Awo Hall', type: 'male', location: 'South Campus', rooms: 24, bedsPerRoom: 3, porter: 'Mr. Segun Akinyemi' },
+  { id: 'block-amina', name: 'Amina Hall', type: 'female', location: 'East Campus', rooms: 16, bedsPerRoom: 4, porter: 'Mrs. Fatima Garba' },
+  { id: 'block-soyinka', name: 'Soyinka Hall', type: 'male', location: 'West Campus', rooms: 20, bedsPerRoom: 3, porter: 'Mr. Tunde Balogun' },
+];
+
+export const hostelBlocks: HostelBlock[] = blockDefs.map((def) => ({
+  id: def.id,
+  name: def.name,
+  type: def.type,
+  location: def.location,
+  totalRooms: def.rooms,
+  totalBeds: def.rooms * def.bedsPerRoom,
+  porterName: def.porter,
+}));
+
+const floorLabels = ['A', 'B', 'C', 'D'];
+
+export const hostelRooms: HostelRoom[] = blockDefs.flatMap((def) => {
+  const roomsPerFloor = Math.ceil(def.rooms / 2);
+  return Array.from({ length: def.rooms }).map((_, index) => {
+    const floor = Math.floor(index / roomsPerFloor);
+    const roomOnFloor = (index % roomsPerFloor) + 1;
+    return {
+      id: `room-${def.id}-${index + 1}`,
+      blockId: def.id,
+      roomNumber: `${floorLabels[floor]}-${String(roomOnFloor).padStart(2, '0')}`,
+      type: def.bedsPerRoom === 4 ? 'quad' as const : 'triple' as const,
+      floor: floor + 1,
+      capacity: def.bedsPerRoom,
+    };
+  });
+});
+
+// Assign a subset of active 100L/200L students, respecting gender
+const assignableStudents = students.filter((s) => s.status === 'active' && (s.levelId === 'level-100' || s.levelId === 'level-200'));
+const maleStudents = assignableStudents.filter((s) => s.gender === 'Male');
+const femaleStudents = assignableStudents.filter((s) => s.gender === 'Female');
+const maleRooms = hostelRooms.filter((r) => blockDefs.find((b) => b.id === r.blockId)!.type === 'male');
+const femaleRooms = hostelRooms.filter((r) => blockDefs.find((b) => b.id === r.blockId)!.type === 'female');
+
+function buildAssignments(studentPool: Student[], roomPool: typeof hostelRooms, maxAssignments: number): RoomAssignment[] {
+  const assignments: RoomAssignment[] = [];
+  const roomOccupancy = new Map<string, number>();
+
+  for (let i = 0; i < Math.min(studentPool.length, maxAssignments); i++) {
+    const student = studentPool[i];
+    // Find room with space
+    const room = roomPool.find((r) => (roomOccupancy.get(r.id) ?? 0) < r.capacity);
+    if (!room) break;
+    const currentCount = roomOccupancy.get(room.id) ?? 0;
+    roomOccupancy.set(room.id, currentCount + 1);
+
+    assignments.push({
+      id: `hostel-assign-${student.id}`,
+      roomId: room.id,
+      blockId: room.blockId,
+      studentId: student.id,
+      sessionId: currentSessionId,
+      assignedDate: '2025-09-10',
+      status: i % 8 === 0 ? 'assigned' : 'occupied',
+      checkInDate: i % 8 === 0 ? undefined : '2025-09-15',
+    });
+  }
+  return assignments;
+}
+
+export const roomAssignments: RoomAssignment[] = [
+  ...buildAssignments(maleStudents, maleRooms, 45),
+  ...buildAssignments(femaleStudents, femaleRooms, 40),
+];
+
 export const universitySeed = {
   faculties,
   departments,
@@ -532,6 +658,7 @@ export const universitySeed = {
   roles,
   users,
   courses,
+  programmeCourses,
   applicants,
   students,
   feeTemplates,
@@ -540,6 +667,9 @@ export const universitySeed = {
   registrations,
   registrationItems,
   results,
+  hostelBlocks,
+  hostelRooms,
+  roomAssignments,
   currentSessionId,
   currentSemesterId,
 };

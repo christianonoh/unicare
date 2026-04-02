@@ -1,3 +1,4 @@
+import { useDemoRevision } from '../../app/store/demoDataStore';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -10,6 +11,7 @@ interface UsersPageProps {
 }
 
 export function UsersPage({ view = 'users' }: UsersPageProps) {
+  useDemoRevision();
   const users = listUsers();
   const { roles } = getReferenceData();
   const content: Record<AccessView, { title: string; description: string }> = {

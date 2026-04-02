@@ -1,6 +1,7 @@
 import { createColumnHelper } from '@tanstack/react-table';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
+import { useDemoRevision } from '../../app/store/demoDataStore';
 import { DataTable } from '../../components/DataTable';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
@@ -16,6 +17,7 @@ interface StudentsPageProps {
 }
 
 export function StudentsPage({ view = 'directory' }: StudentsPageProps) {
+  useDemoRevision();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState(view === 'standing' ? 'probation' : 'all');
   const pageContent: Record<StudentsView, { eyebrow: string; title: string; description: string; sectionTitle: string; sectionSubtitle: string }> = {
@@ -97,7 +99,7 @@ export function StudentsPage({ view = 'directory' }: StudentsPageProps) {
           </div>
         }
       >
-        <DataTable data={students} columns={columns} />
+        <DataTable data={students} columns={columns} exportFilename="students" />
       </SectionCard>
     </div>
   );

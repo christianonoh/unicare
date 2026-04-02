@@ -1,3 +1,18 @@
+import type { ReactNode } from 'react';
+import {
+  LayoutDashboard,
+  Building2,
+  ClipboardList,
+  GraduationCap,
+  Wallet,
+  Hotel,
+  BookOpen,
+  Award,
+  BarChart3,
+  Shield,
+  Settings,
+} from 'lucide-react';
+
 export interface NavChildItem {
   id: string;
   label: string;
@@ -8,23 +23,25 @@ export interface NavChildItem {
 export interface NavSection {
   id: string;
   label: string;
-  icon: string;
+  icon: ReactNode;
   basePath: string;
   items: NavChildItem[];
 }
+
+const ICON_SIZE = 16;
 
 export const navSections: NavSection[] = [
   {
     id: 'dashboard',
     label: 'Dashboard',
-    icon: 'DB',
+    icon: <LayoutDashboard size={ICON_SIZE} />,
     basePath: '/dashboard',
     items: [{ id: 'overview', label: 'Overview', to: '/dashboard/overview' }],
   },
   {
     id: 'academic-structure',
     label: 'Academic Structure',
-    icon: 'AS',
+    icon: <Building2 size={ICON_SIZE} />,
     basePath: '/academic-structure',
     items: [
       { id: 'faculties', label: 'Faculties', to: '/academic-structure/faculties' },
@@ -37,7 +54,7 @@ export const navSections: NavSection[] = [
   {
     id: 'registry',
     label: 'Registry',
-    icon: 'RG',
+    icon: <ClipboardList size={ICON_SIZE} />,
     basePath: '/registry',
     items: [
       { id: 'applicants', label: 'Applicants', to: '/registry/applicants', matchPrefix: '/registry/applicants' },
@@ -48,7 +65,7 @@ export const navSections: NavSection[] = [
   {
     id: 'students',
     label: 'Students',
-    icon: 'ST',
+    icon: <GraduationCap size={ICON_SIZE} />,
     basePath: '/students',
     items: [
       { id: 'directory', label: 'Student Directory', to: '/students/directory' },
@@ -59,7 +76,7 @@ export const navSections: NavSection[] = [
   {
     id: 'finance',
     label: 'Finance',
-    icon: 'FN',
+    icon: <Wallet size={ICON_SIZE} />,
     basePath: '/finance',
     items: [
       { id: 'templates', label: 'Fee Templates', to: '/finance/templates' },
@@ -69,9 +86,20 @@ export const navSections: NavSection[] = [
     ],
   },
   {
+    id: 'hostels',
+    label: 'Hostels',
+    icon: <Hotel size={ICON_SIZE} />,
+    basePath: '/hostels',
+    items: [
+      { id: 'directory', label: 'Hostel Directory', to: '/hostels/directory', matchPrefix: '/hostels/directory' },
+      { id: 'assignments', label: 'Assignments', to: '/hostels/assignments' },
+      { id: 'vacancies', label: 'Vacancies', to: '/hostels/vacancies' },
+    ],
+  },
+  {
     id: 'course-registration',
     label: 'Course Registration',
-    icon: 'CR',
+    icon: <BookOpen size={ICON_SIZE} />,
     basePath: '/course-registration',
     items: [
       { id: 'queue', label: 'Registration Queue', to: '/course-registration/queue' },
@@ -82,7 +110,7 @@ export const navSections: NavSection[] = [
   {
     id: 'results',
     label: 'Results',
-    icon: 'RS',
+    icon: <Award size={ICON_SIZE} />,
     basePath: '/results',
     items: [
       { id: 'score-entry', label: 'Score Entry', to: '/results/score-entry' },
@@ -93,7 +121,7 @@ export const navSections: NavSection[] = [
   {
     id: 'reports',
     label: 'Reports',
-    icon: 'RP',
+    icon: <BarChart3 size={ICON_SIZE} />,
     basePath: '/reports',
     items: [
       { id: 'admissions', label: 'Admissions Reports', to: '/reports/admissions' },
@@ -105,7 +133,7 @@ export const navSections: NavSection[] = [
   {
     id: 'access',
     label: 'Access Control',
-    icon: 'AC',
+    icon: <Shield size={ICON_SIZE} />,
     basePath: '/access',
     items: [
       { id: 'users', label: 'Users', to: '/access/users' },
@@ -115,7 +143,7 @@ export const navSections: NavSection[] = [
   {
     id: 'settings',
     label: 'Settings',
-    icon: 'SE',
+    icon: <Settings size={ICON_SIZE} />,
     basePath: '/settings',
     items: [
       { id: 'institution', label: 'Institution Profile', to: '/settings/institution' },

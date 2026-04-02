@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Area, AreaChart, CartesianGrid, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useDemoRevision } from '../../app/store/demoDataStore';
 import { PageHeader } from '../../components/PageHeader';
 import { SectionCard } from '../../components/SectionCard';
 import { StatCard } from '../../components/StatCard';
@@ -9,9 +10,16 @@ import { formatCompact, formatCurrency } from '../../lib/formatters';
 import { statusTone } from '../../lib/status';
 
 export function DashboardPage() {
+  useDemoRevision();
   const summary = getDashboardSummary();
   const revenueTrend = getRevenueTrend();
   const registrationBreakdown = getRegistrationBreakdown();
+  const registrationColors: Record<string, string> = {
+    Approved: '#2f855a',
+    Pending: '#d69e2e',
+    Held: '#c05662',
+    Rejected: '#718096',
+  };
   const applicants = listApplicants().slice(0, 6);
   const atRiskInvoices = listInvoices().filter((invoice) => invoice.status === 'overdue' || invoice.status === 'unpaid').slice(0, 6);
   const missingLecturerCourses = getReferenceData().courses.filter((course) => !course.lecturerId).slice(0, 6);
@@ -58,7 +66,11 @@ export function DashboardPage() {
           <div className="chart-shell">
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={registrationBreakdown} dataKey="value" nameKey="name" outerRadius={92} innerRadius={58} fill="#14532d" />
+                <Pie data={registrationBreakdown} dataKey="value" nameKey="name" outerRadius={92} innerRadius={58}>
+                  {registrationBreakdown.map((entry) => (
+                    <Cell key={entry.name} fill={registrationColors[entry.name] ?? '#2f6fed'} />
+                  ))}
+                </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
